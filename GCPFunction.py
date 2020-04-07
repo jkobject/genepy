@@ -219,3 +219,10 @@ def extractPath(val):
     extract the path from the string returned by an ls -l|a command
     """
     return 'gs://' + val.split('gs://')[1].split('#')[0]
+
+
+def extractBucket(gspath):
+    """
+    extract the bucket from the string google storage filepath
+    """
+    return gspath.split('gs://')[1].split('/')[0]
