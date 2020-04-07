@@ -10,16 +10,24 @@ from taigapy import TaigaClient
 tc = TaigaClient()
 from bokeh.palettes import *
 import bokeh
+import subprocess
 from bokeh.resources import CDN
 import numpy as np
+from JKBio import GCPFunction as gcp
 from bokeh.plotting import *
 from bokeh.models import HoverTool, CustomJS, BasicTicker, ColorBar, ColumnDataSource, LinearColorMapper, PrintfTickFormatter
 from bokeh.models.widgets import TextInput
 from bokeh.layouts import layout, widgetbox, column, row
 import itertools
 from math import pi
+import re
+import signal
+import random
+import ipdb
+import string
 
 import matplotlib
+from matplotlib import pyplot as plt
 import venn as pyvenn
 import sys
 from PIL import Image, ImageDraw, ImageFont
@@ -130,9 +138,8 @@ def convertGenes(listofgenes, from_idtype="ensembl_gene_id", to_idtype="symbol")
   return(renamed, not_parsed)
 
 
-# do deseq data on different comparison
-# do volcano plot
-def scatter(data, labels=None, colors=None, importance=None, radi=5, alpha=0.8, **kargs):
+def scatter(data, labels=None, xname='x', yname='x', title='scatter plot', showlabels=False,
+            colors=None, importance=None, radi=5, alpha=0.8, **kargs):
   """
   Args:
   -----
@@ -160,58 +167,20 @@ def scatter(data, labels=None, colors=None, importance=None, radi=5, alpha=0.8, 
       ("name", "@labels"),
       ("(x,y)", "(@x, @y)"),
   ]
-  p = figure(tools=TOOLS, tooltips=TOOLTIPS)
+  p = figure(tools=TOOLS, tooltips=TOOLTIPS, title=title)
   p.circle('x', 'y', color='fill_color',
            fill_alpha='fill_alpha',
            line_width=0,
            radius='radius', source=source)
+  p.xaxis[0].axis_label = xname
+  p.yaxis[0].axis_label = yname
+  if showlabels:
+    labels = LabelSet(text='labels', level='glyph',
+                      x_offset=5, y_offset=5, source=source, render_mode='canvas')
+    p.add_layout(labels)
+
   show(p)
   return(p)
-
-
-def bar():
-  data['Year'] = data['Year'].astype(str)
-  data = data.set_index('Year')
-  data.drop('Annual', axis=1, inplace=True)
-  data.columns.name = 'Month'
-
-  years = list(data.index)
-  months = list(data.columns)
-
-  # reshape to 1D array or rates with a month and year for each row.
-  df = pd.DataFrame(data.stack(), columns=['rate']).reset_index()
-
-  # this is the colormap from the original NYTimes plot
-  colors = ["#75968f", "#a5bab7", "#c9d9d3", "#e2e2e2", "#dfccce", "#ddb7b1", "#cc7878", "#933b41", "#550b1d"]
-  mapper = LinearColorMapper(palette=colors, low=df.rate.min(), high=df.rate.max())
-
-  TOOLS = "hover,save,pan,box_zoom,reset,wheel_zoom"
-
-  p = figure(title="US Unemployment ({0} - {1})".format(years[0], years[-1]),
-             x_range=years, y_range=list(reversed(months)),
-             x_axis_location="above", plot_width=900, plot_height=400,
-             tools=TOOLS, toolbar_location='below',
-             tooltips=[('date', '@Month @Year'), ('rate', '@rate%')])
-
-  p.grid.grid_line_color = None
-  p.axis.axis_line_color = None
-  p.axis.major_tick_line_color = None
-  p.axis.major_label_text_font_size = "5pt"
-  p.axis.major_label_standoff = 0
-  p.xaxis.major_label_orientation = pi / 3
-
-  p.rect(x="Year", y="Month", width=1, height=1,
-         source=df,
-         fill_color={'field': 'rate', 'transform': mapper},
-         line_color=None)
-
-  color_bar = ColorBar(color_mapper=mapper, major_label_text_font_size="5pt",
-                       ticker=BasicTicker(desired_num_ticks=len(colors)),
-                       formatter=PrintfTickFormatter(format="%d%%"),
-                       label_standoff=6, border_line_color=None, location=(0, 0))
-  p.add_layout(color_bar, 'right')
-
-  show(p)      # show the plot
 
 
 def CNV_Map(df, sample_order=[], title="CN heatmaps sorted by SMAD4 loss, pointing VPS4B",
@@ -324,7 +293,6 @@ def add_points(p, df1, x, y, se_x, color='blue', alpha=0.2, outline=False, maxva
   # the key from the pandas groupby funciton.
   df = df1.copy()
   transformed_q = -df[y].apply(np.log10).values
-  print(transformed_q.min(), df[y].max())
   transformed_q[transformed_q == np.inf] = maxvalue
   df['transformed_q'] = transformed_q
   df['color'] = color
@@ -422,30 +390,39 @@ def plotCorrelationMatrix(data, names, colors=None, title=None, dataIsCorr=False
     p.rect('xname', 'yname', 0.9, 0.9, source=data,
            color='colors', alpha='alphas', line_color=None,
            hover_line_color='black', hover_color='colors')
+    try:
+      show(p)
+    except:
+      show(p)
+    save(p, title + '.html')
 
-    save(p, 'temp/corrmat.html')
     return p  # show the plot
   else:
     plt.figure(figsize=(size, 200))
     plt.title('the correlation matrix')
     plt.imshow(data.T if invert else data)
-    plt.savefig("temp/corrmat.pdf")
+    plt.savefig(title + ".pdf")
     plt.show()
 
 
-def venn(inp, names):
+def venn(inp, names, title="venn"):
   labels = pyvenn.get_labels(inp, fill=['number', 'logic'])
   if len(inp) == 2:
     fig, ax = pyvenn.venn2(labels, names=names)
-  if len(inp) == 3:
+  elif len(inp) == 3:
     fig, ax = pyvenn.venn3(labels, names=names)
-  if len(inp) == 4:
+  elif len(inp) == 4:
     fig, ax = pyvenn.venn4(labels, names=names)
-  if len(inp) == 5:
+  elif len(inp) == 5:
     fig, ax = pyvenn.venn5(labels, names=names)
-  if len(inp) == 6:
+  elif len(inp) == 6:
     fig, ax = pyvenn.venn6(labels, names=names)
+  else:
+    raise ValueError('need to be between 2 to 6')
+  ax.set_title(title)
+  fig.savefig(title + '.png')
   fig.show()
+  plt.pause(0.1)
 
 
 def grouped(iterable, n):
@@ -537,6 +514,26 @@ def createFoldersFor(filepath):
       os.mkdir(prevval)
 
 
+def randomString(stringLength=6, stype='all', withdigits=True):
+  """
+  Generate a random string of letters and digits
+
+  Args:
+  -----
+
+
+  """
+  if stype == 'lowercase':
+    lettersAndDigits = ascii_lowercase
+  elif stype == 'uppercase':
+    lettersAndDigits = ascii_uppercase
+  else:
+    lettersAndDigits = string.ascii_letters
+  if withdigits:
+    lettersAndDigits += string.digits
+  return ''.join(random.choice(lettersAndDigits) for i in range(stringLength))
+
+
 def pdDo(df, op="mean", of="value1", over="value2"):
   df = df.sort_values(by=over)
   index = []
@@ -562,17 +559,215 @@ def pdDo(df, op="mean", of="value1", over="value2"):
   return index, ret
 
 
-def parrun(cmds, cores):
+def parrun(cmds, cores, add=[]):
   count = 0
   exe = ''
+  if len(add) != 0 and len(add) != len(cmds):
+    raise ValueError("we would want them to be the same size")
+  else:
+    addexe = ''
   for i, cmd in enumerate(cmds):
     count += 1
     exe += cmd
+    if len(add) != 0:
+      addexe += add[i]
     if count < cores and i < len(cmds) - 1:
       exe += ' & '
+      if len(add) != 0:
+        addexe += ' & '
     else:
       count = 0
-      res = os.system(exe)
+      res = subprocess.run(exe, capture_output=True, shell=True)
+      if res.returncode != 0:
+        raise ValueError('issue with the command: ' + str(res.stderr))
       exe = ''
-      if res != 0:
-        raise Exception("Leave command pressed or command failed")
+      if len(add) != 0:
+        res = subprocess.run(addexe, capture_output=True, shell=True)
+        if res.returncode != 0:
+          raise ValueError('issue with the command: ' + str(res.stderr))
+        addexe = ''
+
+
+def askif(quest):
+  print(quest)
+  inp = input()
+  if inp in ['yes', 'y', 'Y', 'YES', 'oui', 'si']:
+    return 1
+  elif inp in ['n', 'no', 'nope', 'non', 'N']:
+    return 0
+  else:
+    return askif('you need to answer by yes or no')
+
+
+def inttodate(i, lim=1965, unknown='U', sep='-', order="asc"):
+  a = int(i // 365)
+  if a > lim:
+    a = str(a)
+    r = i % 365
+    m = str(int(r // 32)) if int(r) > 0 else str(1)
+    r = r % 32
+    d = str(int(r)) if int(r) > 0 else str(1)
+  else:
+    return unknown
+  return d + sep + m + sep + a if order == "asc" else a + sep + m + sep + d
+
+
+def datetoint(dt, split='-', unknown='U', order="des"):
+  if len(dt) > 1:
+
+    arr = np.array(dt[0].split(split) if dt[0] != unknown else [0, 0, 0]).astype(int)
+    for val in dt[1:]:
+      arr = np.vstack((arr, np.array(val.split(split) if val != unknown else [0, 0, 0]).astype(int)))
+    arr = arr.T
+  else:
+    arr = np.array(dt.split(split) if dt != unknown else [0, 0, 0]).astype(int)
+  return arr[2] * 365 + arr[1] * 31 + arr[0] if order == "asc" else arr[0] * 365 + arr[1] * 31 + arr[2]
+
+
+def getBamDate(bams, split='-', order="des", unknown='U'):
+  DTs = []
+  for i, bam in enumerate(bams):
+    print(i / len(bams), end='\r')
+    data = os.popen('export GCS_OAUTH_TOKEN=`gcloud auth application-default print-access-token`\
+       && samtools view -H ' + bam + ' | grep "^@RG"')
+    if data == signal.SIGINT:
+      print('Awakened')
+      break
+    else:
+      res = data.read()
+      dt = re.findall("(?<=\tDT:).+?\t", res)
+    if len(dt) > 1:
+      arr = np.array(dt[0].split('T')[0].split(split)).astype(int)
+      for val in dt[1:]:
+        arr = np.vstack((arr, np.array(val.split('T')[0].split(split)).astype(int)))
+      arr = arr.T
+      i = arr[0] * 365 + arr[1] * 31 + arr[2] if order == "asc" else arr[2] * 365 + arr[1] * 31 + arr[0]
+      DTs.append(dt[np.argsort(i)[0]].split('T')[0])
+    elif len(dt) == 1:
+      DTs.append(dt[0].split('T')[0])
+    else:
+      DTs.append(unknown)
+  return DTs
+
+
+def getSpikeInControlScales(refgenome, fastq=None, fastQfolder='', mapper='bwa', pairedEnd=False, cores=1,
+                            pathtosam='samtools', pathtotrim_galore='trim_galore', pathtobwa='bwa',
+                            totrim=True, tomap=True, tofilter=True, results='res/', toremove=False):
+  """
+  Will do spike in control to allow for unormalizing sequence data
+
+  Count based sequencing data is not absolute and will be normalized as each sample will be sequenced at a specific depth. To figure out what was the actual sample concentration, we use Spike In control
+
+  You should have FastQfolder/[NAME].fastq & BigWigFolder/[NAME].bw with NAME being the same for the same samples
+
+  If
+
+  @
+
+  Args:
+  -----
+  refgenome: str the file path to the indexed reference genome
+  FastQfolder: str the folder path where the fastq files are stored (should be named the same as files in BigWigFolder)
+  BigWigFolder: str the folder path where the bigwig files are stored (should be named the same as files in FastQfolder)
+  mapper: str flag to 'bwa', ...
+  pairedEnd: Bool flat to true for paired end sequences. if true, You should have FastQfolder/[NAME]_1|2.fastq
+
+  Returns:
+  --------
+  dict(file,float) the scaling factor dict
+
+  """
+  if len(fastQfolder) > 0:
+    print('using all files from folder')
+    fastqs = os.listdir(fastQfolder)
+    fastqs = [i for i in fastqs if '.fq.gz' == i[-6:] or '.fastq.gz' == i[-9:]]
+    fastqs.sort()
+    if pairedEnd and (tomap or totrim):
+      print("need to be name_*1, name_*2")
+      fastqs = [i for i in grouped(fastqs, 2)]
+  elif fastq is None:
+    raise Error('you need input files')
+  else:
+    if type(fastq) is list:
+      print('your files need to be all in the same folder')
+      fastQfolder = '/'.join(fastq[0].split('/')[:-1]) + '/'
+      if not totrim and not tomap:
+        fastqs = [f.split('/')[-1] for f in fastq]
+      else:
+        print("need to be name_*1, name_*2")
+        fastqs = [[f[0].split('/')[-1], f[1].split('/')[-1]] for f in grouped(fastq, 2)]
+    else:
+      fastQfolder = '/'.join(fastq.split('/')[:-1]) + '/'
+      fastqs = [fastq.split('/')[-1]]
+  print(fastqs)
+  if not totrim:
+    print("you need to have your files in the " + results + " folder")
+  if totrim and tomap:
+    print("\n\ntrimming\n\n")
+    if pairedEnd:
+      cmds = []
+      rm = []
+      for file in fastqs:
+        cmd = pathtotrim_galore + ' --paired --fastqc --gzip ' + fastQfolder + file[0] + ' ' + fastQfolder + file[1] + " -o " + results
+        if toremove:
+          rm.append('rm ' + fastQfolder + file[0] + ' ' + fastQfolder + file[1])
+        cmds.append(cmd)
+      print(cmds)
+      parrun(cmds, cores, add=rm)
+      fastqs = [[file[0].split('.')[0] + '_val_1.fq.gz', file[1].split('.')[0] + '_val_2.fq.gz'] for file in fastqs]
+  if tomap:
+    print("\n\nmapping\n\n")
+    if pairedEnd:
+      cmds = []
+      rm = []
+      for file in fastqs:
+        cmd = pathtobwa + ' mem ' + refgenome + ' ' + results + file[0] + ' ' + results +\
+            file[1] + ' | ' + pathtosam + ' sort - -o ' + results + file[0].split('.')[0] + '.sorted.bam'
+        if toremove:
+          rm.append('rm ' + results + file[0] + ' ' + results + file[1])
+        cmds.append(cmd)
+      parrun(cmds, cores, add=rm)
+      fastqs = [file[0].split('.')[0] + '.sorted.bam' for file in fastqs]
+
+  if tofilter:
+    print("\n\nfiltering\n\n")
+    cmds = []
+    rm = []
+    parrun([pathtosam + ' index ' + results + file.split('.')[0] + '.sorted.bam' for file in fastqs], cores)
+    parrun([pathtosam + ' flagstat ' + results + file.split('.')[0] + '.sorted.bam > ' + results + file.split('.')[0] + '.sorted.bam.flagstat' for file in fastqs], cores)
+    parrun([pathtosam + ' idxstats ' + results + file.split('.')[0] + '.sorted.bam > ' + results + file.split('.')[0] + '.sorted.bam.idxstat' for file in fastqs], cores)
+    fastqs = [file.split('.')[0] + '.sorted.bam' for file in fastqs]
+  else:
+    print("files need to be named: NAME.sorted.bam")
+    fastqs = [file for file in fastqs if '.sorted.bam' == file[-11:]]
+  mapped = {}
+  norm = {}
+  unique_mapped = {}
+  print("\n\ncounting\n\n")
+  for file in fastqs:
+    mapped[file.split('.')[0]] = int(os.popen(pathtosam + ' view -c -F 0x004 -F 0x0008 -f 0x001 -F 0x0400 -q 1 ' + results +
+                                              file + ' -@ ' + str(cores)).read().split('\n')[0])
+   # unique_mapped[file.split('.')[0]] = int(re.findall("Mapped reads: (\d+)", os.popen('bamtools stats -in '+results +
+    #                                             file + '.sorted.bam').read())[0])
+  nbmapped = np.array([i for i in mapped.values()])
+  nbmapped = np.sort(nbmapped)[0] / nbmapped.astype(float)
+  for i, val in enumerate(mapped.keys()):
+    norm[val] = nbmapped[i]
+  return norm, mapped,  # unique_mapped
+
+
+def changeToBucket(samples, gsfolderto, values=['bam', 'bai'], catchdup=False):
+  # to do the download to the new dataspace
+  for i, val in samples.iterrows():
+    for ntype in values:
+      name = val[ntype].split('/')[-1] if catchdup else randomString(6, 'underscore', withdigits=False) + '_' + val[ntype].split('/')[-1]
+      if not gcp.exists(gsfolderto + val[ntype].split('/')[-1]) or not catchdup:
+        cmd = 'gsutil cp ' + val[ntype] + ' ' + gsfolderto + name
+        res = subprocess.run(cmd, shell=True, capture_output=True)
+        if res.returncode != 0:
+          raise ValueError(str(res.stderr))
+      else:
+        print(name + ' already exists in the folder: ' + gsfolderto)
+        print(gcp.lsFiles([gsfolderto + name], '-la'))
+      samples.loc[i, ntype] = gsfolderto + name
+  return samples

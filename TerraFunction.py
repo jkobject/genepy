@@ -29,6 +29,10 @@ def createManySubmissions(workspace, workflow, references, entity=None, expressi
     expresson: str to use if want to compute on the direct value of the entity or on values of values
                 e.g. this.samples
     use_callcache: Bool to false if want to recompute everything even if same input
+
+  Returns:
+  ------
+    submission_ids list(str) the submission ids
   """
   wm = dm.WorkspaceManager(workspace)
   submission_ids = []
@@ -48,6 +52,12 @@ def waitForSubmission(workspace, submissions, raise_errors=True):
       workspace (str): Workspace name
     submissions: list[str] of submission ids
     raise_errors: to true if errors should stop your code
+
+  Returns:
+  -------
+
+  Raises:
+  ------
   """
   failed_submission = []
   timing = 0
