@@ -13,6 +13,7 @@ import signal
 from JKBio import Helper as h
 from JKBio import GCPFunction as gcp
 import ipdb
+import subprocess
 
 
 def createManySubmissions(workspace, workflow, references, entity=None, expression=None, use_callcache=True):
@@ -96,7 +97,7 @@ def waitForSubmission(workspace, submissions, raise_errors=True):
   # print and return well formated data
 
 
-def uploadFromFolder(gcpfolder, prefix, workspace, sep='_', updating=False,
+def uploadFromFolder(gcpfolder, prefix, workspace, sep='_', updating=False, loc=0,
                      fformat="fastq12", newsamples=None, samplesetname=None, source='U'):
   """
   upload samples (virtually: only creates tsv file) from a google bucket to a terra workspace
@@ -130,7 +131,7 @@ def uploadFromFolder(gcpfolder, prefix, workspace, sep='_', updating=False,
       data = {'sample_id': [], 'bam': [], 'bai': []}
       for file in files:
         if val.split('.')[-1] in ["bam", "bai"]:
-          name = file.split('/')[-1].split('.')[0].split(sep)[0][:-2]
+          name = file.split('/')[-1].split('.')[0].split(sep)[loc][:-2]
           if name in data['sample_id']:
             pos = data['sample_id'].index(name)
             if file[-4:] == ".bam":
@@ -188,7 +189,7 @@ def uploadFromFolder(gcpfolder, prefix, workspace, sep='_', updating=False,
     print(files)
     for file in files:
       if file[-9:] == ".fastq.gz" or file[-6:] == ".fq.gz":
-        name = file.split('/')[-1].split('.')[0].split(sep)[0]
+        name = file.split('/')[-1].split('.')[0].split(sep)[loc]
         if name in data['sample_id']:
           pos = data['sample_id'].index(name)
           if fformat == "fastqR1R2":
@@ -325,115 +326,78 @@ def saveOmicsOutput(workspace, pathto_cnvpng='segmented_copy_ratio_img',
       os.system('gsutil cp ' + val[pathto_snv] + ' ' + datadir + i + '/')
 
 
-def changeGSlocation(workspacefrom, workspaceto=None, prevgslist=[], newgs='', index_func=None,
-                     flag_non_matching=False, onlycol=[], entity='', droplists=True, keeppath=True, dry_run=False):
+def changeGSlocation(workspacefrom, newgs, workspaceto=None, prevgslist=[], index_func=None,
+                     flag_non_matching=False, onlycol=[], entity='', droplists=True, keeppath=True, dry_run=False, par=20):
   """
 
   """
   flaglist = []
   data = {}
   wmfrom = dm.WorkspaceManager(workspacefrom)
-  if not keeppath:
-    flag_non_matching = True
-  if entity in ['', 'participants']:
-    try:
-      a = wmfrom.get_participants()
-      data.update({'participants': a})
-    except:
-      print('no participants')
-  if entity in ['', 'samples']:
-    try:
-      a = wmfrom.get_samples()
-      data.update({'samples': a})
-    except:
-      print('no samples')
-  if entity in ['', 'pair_sets']:
-    try:
-      a = wmfrom.get_pair_sets()
-      data.update({'pair_sets': a})
-    except:
-      print('no pair_sets')
-  if entity in ['', 'pairs']:
-    try:
-      a = wmfrom.get_pairs()
-      data.update({'pairs': a})
-    except:
-      print('no pairs')
-  if entity in ['', 'sample_sets']:
-    try:
-      a = wmfrom.get_sample_sets()
-      data.update({'sample_sets': a})
-    except:
-      print('no sample_sets')
-    # currently works only for sample, sample
-  for i, entity in data.items():
-    if onlycol:
-      try:
-        entity = entity[onlycol]
-      except:
-        print("entity " + str(i) + " does not contain one of the columns")
-        continue
-    todrop = set()
-    for j, val in entity.iterrows():
-      # print(j)
-      for k, prev in enumerate(val):
-        if type(prev) is str:
-          new = prev
-          if newgs not in new:
+  a = wmfrom.get_entities(entity)
+  if len(a) == 0:
+    raise ValueError('no ' + entity)
+  if onlycol:
+    a = a[onlycol]
+  todrop = set()
+  torename = {}
+  print('this should only contains gs:// paths otherwise precise columns using \"onlycol\"')
+  for col in a.columns.tolist():
+    val = []
+    for k, prev in a[col].iteritems():
+      if type(prev) is str:
+        new = prev
+        if newgs not in new:
+          if len(prevgslist) > 0:
             for prevgs in prevgslist:
               new = new.replace(prevgs, newgs)
             if flag_non_matching:
-              if 'gs://' == prev[:5]:
+              if new == prev:
+                flaglist.append(prev)
+          if not keeppath:
+            new = newgs + new.split('/')[-1]
+          else:
+            new = newgs + '/'.join(new.split('/')[3:])
+        else:
+          print("sample " + str(k) + " was already in the new gs")
+        val.append(new)
+    # IN CASE WE HAVE A LIST
+      if type(prev) is list:
+        if droplists:
+          todrop.add(k)
+          continue
+        ind = []
+        for prevname in prev:
+          newname = prevname
+          if newgs not in newname:
+            if len(prevgslist) > 0:
+              for prevgs in prevgslist:
+                new = new.replace(prevgs, newgs)
+              if flag_non_matching:
                 if new == prev:
                   flaglist.append(prev)
-                elif not keeppath:
-                  new = newgs + new.split('/')[-1]
-          val[k] = new
-        if type(prev) is list:
-          if droplists:
-            todrop.add(k)
-            continue
-          ind = []
-          for prevname in prev:
-            newname = prevname
-            if newgs not in newname:
-              for prevgs in prevgslist:
-                newname = newname.replace(prevgs, newgs)
-              if flag_non_matching:
-                if 'gs://' == prevname[:5]:
-                  if newname == prevname:
-                    flaglist.append(prevname)
-                  elif not keeppath:
-                    new = newgs + new.split('/')[-1]
-            ind.append(newname)
-          val[k] = ind
-        entity.loc[j] = val
-    if onlycol:
-      data[i][onlycol] = entity
-    for drop in todrop:
-      data[i] = data[i].drop(drop, 1)
+            if not keeppath:
+              new = newgs + new.split('/')[-1]
+            else:
+              new = newgs + '/'.join(new.split('/')[3:])
+          else:
+            print("sample " + str(k) + " was already in the new gs")
+          ind.append(newname)
+        val.append(ind)
+    torename.update({col: val})
+    if not dry_run:
+      if keeppath:
+        h.parrun(['gsutil mv ' + a.iloc[i][col] + ' ' + v for i, v in enumerate(val)], cores=20)
+      else:
+        gcp.mvFiles(a[col].tolist(), newgs)
   if workspaceto is None:
     wmto = wmfrom
   else:
     wmto = dm.WorkspaceManager(workspaceto)
-  for key in data.keys():
-    for k in data[key].columns:
-      data[key][k] = data[key][k].astype(str)
+  torename = pd.DataFrame(data=torename, index=a.index.tolist())
   if not dry_run:
-    ipdb.set_trace()
-    if "participants" in data:
-      wmto.upload_entities('participant', data['participants'])
-    if "samples" in data:
-      wmto.upload_samples(data['samples'])
-    if "pairs" in data:
-      wmto.upload_pairs(data['pairs'])
-    if "pair_set" in data:
-      pairset = data['pair_set'].drop('pairs', 1)
-      wmto.upload_entities('pair_set', pairset)
-    if "sample_sets" in data:
-      sampleset = data['sample_sets'].drop('samples', 1)
-      wmto.upload_entities('sample_set', sampleset)
-  return flaglist
+    wmto.update_entity_attributes(entity, torename)
+  return torename, flaglist
 
 
 def renametsvs(workspace, wmto=None, index_func=None):
@@ -630,3 +594,25 @@ def saveConfigs(workspace, filepath):
   for k, val in conf.iterrows():
     params[k] = wm.get_config(val['name'])
   h.dictToFile(params, filepath + '.json')
+
+
+def cleanWorkspace(workspaceid, toleave=[], defaulttoleave=['workspace', 'scripts', 'notebooks', 'files', 'data', 'hound', 'references', 'name', 'folder']):
+  """
+  removes all processing folder in a terra workspace easily
+
+  args:
+    workspaceid: str, the workspace
+    toleave: a list of first order folder in the bucket that you don't want to be deleted
+    defaulttoleave: it should contain non processing folders that contain metadata and files for the workspace
+  """
+  toleave.extend(defaulttoleave)
+  bucket = dm.WorkspaceManager(workspaceid).get_bucket_id()
+  res = subprocess.run('gsutil -m ls gs://' + bucket, shell=True, capture_output=True)
+  if res.returncode != 0:
+    raise ValueError(str(res.stderr))
+  res = str(res.stdout)[2:-1].split('\\n')[:-1]
+  toremove = [val for val in res if val.split('/')[-2] not in toleave]
+  if h.askif('we are going to remove ' + str(len(toremove)) + " files/folders:\n" + str(toremove) + "\nare you sure?"):
+    gcp.rmFiles(toremove, add='-r')
+  else:
+    print("aborting")

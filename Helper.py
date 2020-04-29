@@ -604,7 +604,7 @@ def inttodate(i, lim=1965, unknown='U', sep='-', order="asc"):
   if a > lim:
     a = str(a)
     r = i % 365
-    m = str(int(r // 32)) if int(r) > 0 else str(1)
+    m = str(int(r // 32)) if int(r // 32) > 0 else str(1)
     r = r % 32
     d = str(int(r)) if int(r) > 0 else str(1)
   else:
@@ -613,15 +613,13 @@ def inttodate(i, lim=1965, unknown='U', sep='-', order="asc"):
 
 
 def datetoint(dt, split='-', unknown='U', order="des"):
+  arr = np.array(dt[0].split(split) if dt[0] != unknown else [0, 0, 0]).astype(int)
   if len(dt) > 1:
-
-    arr = np.array(dt[0].split(split) if dt[0] != unknown else [0, 0, 0]).astype(int)
     for val in dt[1:]:
       arr = np.vstack((arr, np.array(val.split(split) if val != unknown else [0, 0, 0]).astype(int)))
     arr = arr.T
-  else:
-    arr = np.array(dt.split(split) if dt != unknown else [0, 0, 0]).astype(int)
-  return arr[2] * 365 + arr[1] * 31 + arr[0] if order == "asc" else arr[0] * 365 + arr[1] * 31 + arr[2]
+  res = arr[2] * 365 + arr[1] * 31 + arr[0] if order == "asc" else arr[0] * 365 + arr[1] * 31 + arr[2]
+  return [res] if type(res) is np.int64 else res
 
 
 def getBamDate(bams, split='-', order="des", unknown='U'):
@@ -759,8 +757,9 @@ def getSpikeInControlScales(refgenome, fastq=None, fastQfolder='', mapper='bwa',
 def changeToBucket(samples, gsfolderto, values=['bam', 'bai'], catchdup=False):
   # to do the download to the new dataspace
   for i, val in samples.iterrows():
+    ran = randomString(6, 'underscore', withdigits=False)
     for ntype in values:
-      name = val[ntype].split('/')[-1] if catchdup else randomString(6, 'underscore', withdigits=False) + '_' + val[ntype].split('/')[-1]
+      name = val[ntype].split('/')[-1] if catchdup else ran + '_' + val[ntype].split('/')[-1]
       if not gcp.exists(gsfolderto + val[ntype].split('/')[-1]) or not catchdup:
         cmd = 'gsutil cp ' + val[ntype] + ' ' + gsfolderto + name
         res = subprocess.run(cmd, shell=True, capture_output=True)
