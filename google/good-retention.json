@@ -1,0 +1,12 @@
+{
+  "rule":
+  [
+    {
+      "action": {"type": "Delete"},
+      "condition": {
+        "DaysSinceNoncurrentTime": 90,
+        "NumberOfNewerVersions": 2
+      }
+    }
+  ]
+}

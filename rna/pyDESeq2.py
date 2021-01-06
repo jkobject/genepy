@@ -6,7 +6,7 @@
 
 from __future__ import print_function
 import pandas as pd
-import pdb
+import ipdb
 import numpy as np
 import rpy2.robjects as robjects
 from rpy2.robjects import pandas2ri, Formula, numpy2ri
@@ -73,6 +73,14 @@ class pyDESeq2:
 
   def run_deseq(self, **kwargs):
     self.dds = deseq.DESeq(self.dds, **kwargs)
+
+  def getSizeFactors(self):
+    return deseq.sizeFactors_DESeqDataSet(self.dds)
+
+  def setSizeFactors(self, factors):
+    val = self.dds.do_slot('colData').do_slot('listData')
+    val[2] = ro.vectors.FloatVector(np.array(factors))
+    self.dds.do_slot('colData').do_slot_assign('listData', val)
 
   def get_deseq_result(self, **kwargs):
 
