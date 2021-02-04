@@ -4,30 +4,31 @@
 
 from __future__ import print_function
 
-import pdb
-import ipdb
 import pandas as pd
 import numpy as np
+from JKBio.utils import helper as h
+import gzip
+import seaborn as sns
 
 from taigapy import TaigaClient
 tc = TaigaClient()
 
 def vcf_to_df(path, hasfilter=False, samples=['sample'], additional_cols=[]):
-  """
-  transforms a vcf file into a dataframe file as best as it can
+    """
+    transforms a vcf file into a dataframe file as best as it can
 
-  Args:
-  -----
-    path: str filepath to the vcf file
-    hasfilter: bool whether or not the vcf has a filter column
-    samples: list[str] colnames of the sample names.
-    additional_cols: list[str] of additional colnames in the vcf already looks for 'DB', 'SOMATIC', 'GERMLINE', "OVERLAP", "IN_PON", "STR", "ReverseComplementedAlleles"
+    Args:
+    -----
+      path: str filepath to the vcf file
+      hasfilter: bool whether or not the vcf has a filter column
+      samples: list[str] colnames of the sample names.
+      additional_cols: list[str] of additional colnames in the vcf already looks for 'DB', 'SOMATIC', 'GERMLINE', "OVERLAP", "IN_PON", "STR", "ReverseComplementedAlleles"
 
-  Returns:
-  --------
-    a dataframe fo the vcf
-    a dict associating each column with its description (gathered from the vcf header)
-  """
+    Returns:
+    --------
+      a dataframe fo the vcf
+      a dict associating each column with its description (gathered from the vcf header)
+    """
     uniqueargs = ['DB', 'SOMATIC', 'GERMLINE', "OVERLAP", "IN_PON",
                   "STR", "ReverseComplementedAlleles"] + additional_cols
 
@@ -346,7 +347,6 @@ def checkAmountOfSegments(segmentcn, thresh=850, samplecol="DepMap_ID"):
     thresh: max ok amount
   """
   failed = []
-  segmentcn = renameColumns(segmentcn)
   celllines = set(segmentcn[samplecol].tolist())
   amounts = []
   for cellline in celllines:
