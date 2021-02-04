@@ -110,6 +110,10 @@ def getBamDate(bams, split='-', order="des", unknown='U'):
 def indexBams(bucketpath, cores=4):
     """
     given a bucket path, will index all .bam files without an associated index and return their paths
+
+		Returns:
+		-------
+			a dict[str:str] of newly indexed bam files with their assocciated bam index file
     """
     files = gcp.lsFiles([bucketpath])
     bams = [val for val in files if '.bam' in val[-4:]]
@@ -182,13 +186,21 @@ def extractPairedSingleEndFrom(folder, sep='-', namepos=2):
 	return single, pd.DataFrame(paired)
 
 
-def findReplicatesBams(folder, sep='-', namings='-r([0-9])', namepos=2):
+def findReplicatesBams(folder, sep='', filetypes=['.bam'], namings='-r([0-9])', namepos=0):
 	"""
-	creates a dict of name and replicate files given a regexp namging scheme
+	creates a dict of name and replicate files given a regexp naming scheme
+
+	Args:
+	-----
+		folder: str the folderpath containing the bam files
+		sep: str how to separate each filename (to extract the name)
+		namepos: int which separated location to use (to extract the name)
+		filetypes: list[str] if filename appendix to accept
+		namings: str regexp string to extract the replicate number
 	"""
 	rep = {}
 	for val in os.listdir(folder):
-		if val[-4:] == '.bam':
+		if val[-4:] in filetypes:
 			match = re.search(namings, val)
 			if match:
 				number = match.groups()[0]
@@ -201,52 +213,19 @@ def findReplicatesBams(folder, sep='-', namings='-r([0-9])', namepos=2):
 	return rep
 
 
-def singleEnd(singlend, folder="data/seqs/", numthreads=8, peaksFolder="peaks/",
-					ismapped=False, mappedFolder='mapped/', refFolder='data/reference/index'):
-	"""
-	run the singleEnd pipeline
-	for alignment etc, one can use pysam ready made implementation of samtools
-	"""
-	print("you need to have bowtie2 installed: http://bowtie-bio.sourceforge.net/bowtie2/index.shtml")
-	for val in singlend:
-		out1 = folder + mappedFolder + val.split('.')[0] + ".mapped.sam"
-		if not ismapped:
-			in1 = folder + val
-			os.system("bowtie2 -x " + refFolder + " --threads " + str(numthreads) +
-					  " -t -k 1 --very-sensitive -U " + in1 + " -S " + out1)
-		out2 = folder + peaksFolder + val.split('.')[0]
-		print(out1)
-		os.system("macs2 callpeak -f SAM -t " + out1 + " --outdir " + out2)
-		# it can take many TB so better delete
-
-
-def pairedEnd(pairedend, folder="", numthreads=8, peaksFolder="peaks/",
-					ismapped=False, mappedFolder='mapped/', refFolder='data/reference/index'):
-	"""
-	# run the paired end pipeline
-	"""
-	print("you need to have bowtie2 installed: http://bowtie-bio.sourceforge.net/bowtie2/index.shtml")
-	for key, val in pairedend.items():
-		out1 = folder + mappedFolder + val[0].split('.')[0] + ".mapped.sam"
-		in1 = folder + val[0]
-		in2 = folder + val[1]
-		os.system("bowtie2 -x " + refFolder + " --threads " + str(numthreads) + " -t -k 1 \
-		--very-sensitive -1 " + in1 + " -2 " + in2 + " - S " + out1)
-		out2 = folder + peaksFolder + val[0].split('.')[0]
-		print(out1)
-		changefrom = out1
-		changeto = out1[:-4] + '.bam'
-		os.system("samtools view -b " + changefrom + " -o " + changeto)
-		os.system("macs2 callpeak --format 'BAMPE' --treatment " + changeto + " --outdir " + out2)
-		# it can take many TB so better delete
-
-
-def mergeBams(rep):
+def mergeBams(rep, cores=3):
 	"""
 	uses samtools to merge a set of replicates considered into one file
+
+	Args:
+	-----
+		rep: dict[str: list[str]] associating merged bam namepath to list of replicate bam filepath to be merged
+		cores: int number of parallel threads to use
 	"""
+	runs = []
 	for i, val in rep.items():
 		out1 = i + '.merged.bam'
 		for bam in val:
 			in1 += ' ' + bam
-		os.system("samtools merge " + out1 + in1)
+		runs.append("samtools merge " + out1 + in1)
+	h.parrun(runs, cores)

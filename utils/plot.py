@@ -7,13 +7,14 @@ import venn as pyvenn
 from matplotlib import pyplot as plt
 from matplotlib import cm
 from bokeh.palettes import *
-from bokeh.layouts import layout, widgetbox, column, row
+from bokeh.layouts import column
 from bokeh.models.annotations import LabelSet
 from bokeh.models.widgets import TextInput
 from bokeh.models import HoverTool, CustomJS, BasicTicker, ColorBar, PrintfTickFormatter
 from bokeh.models import ColumnDataSource, LinearColorMapper, LogColorMapper
 from bokeh.util.hex import hexbin
 from bokeh.transform import linear_cmap
+import matplotlib.gridspec as gridspec
 from bokeh.io import show
 from bokeh.plotting import *
 import bokeh
@@ -261,11 +262,11 @@ def volcano(data, folder='', tohighlight=None, tooltips=[('gene', '@gene_id')],
     # pdb.set_trace()
     to_plot_not, to_plot_yes = selector(data, tohighlight if tohighlight is not None else [
     ], logfoldtohighlight, pvaltohighlight)
-    hover = bokeh.models.HoverTool(tooltips=tooltips,
+    hover = HoverTool(tooltips=tooltips,
                                    names=['circles'])
 
     # Create figure
-    p = bokeh.plotting.figure(title=title, plot_width=650,
+    p = figure(title=title, plot_width=650,
                               plot_height=450)
 
     p.xgrid.grid_line_color = 'white'
@@ -322,7 +323,7 @@ def add_points(p, df1, x, y, color='blue', alpha=0.2, outline=False, maxvalue=10
     df['color'] = color
     df['alpha'] = alpha
     df['size'] = 7
-    source1 = bokeh.models.ColumnDataSource(df)
+    source1 = ColumnDataSource(df)
 
     # Specify data source
     p.scatter(x=x, y='transformed_q', size='size',
@@ -394,10 +395,11 @@ def correlationMatrix(data, names, colors=None, pvals=None, maxokpval=10**-9, ot
     else:
         data = np.array(data)
     regdata = data.copy()
-    if minval is not None:
-        data[data<minval]=minval
     if maxval is not None:
         data[data > maxval] = maxval
+        data[data < -maxval] = -maxval
+    if minval is not None:
+        data[data<minval]=minval
     data=data/data.max()
     TOOLS = "hover,crosshair,pan,wheel_zoom,zoom_in,zoom_out,box_zoom,undo,redo,reset,save"
     xname = []
@@ -415,7 +417,7 @@ def correlationMatrix(data, names, colors=None, pvals=None, maxokpval=10**-9, ot
         regpvals = pvals.copy()
         u = pvals<maxokpval
         pvals[~u] = np.log10(1/pvals[~u])
-        pvals = pvals/pvals.max()
+        pvals = pvals/pvals.max().max()
         pvals[u]=1
     if interactive:
         xname = []
@@ -427,7 +429,7 @@ def correlationMatrix(data, names, colors=None, pvals=None, maxokpval=10**-9, ot
                 yname.append(name2)
                 if pvals is not None:
                     height.append(max(0.1, min(0.9, pvals[i, j])))
-                    color.append(cc.coolwarm[int((data[i, j]*128)+127)])
+                    color.append(cc.coolwarm[int(max(0,(data[i, j]*128)+127))])
                     alpha.append(min(abs(data[i, j]), 0.9))
                 elif other is not None:
                     color.append(cc.coolwarm[int((data[i, j]*128)+127)])
@@ -650,3 +652,60 @@ def andrew(groups, merged, annot, enr=None, pvals=None, cols=8, precise=True, ti
     fig.fig.suptitle(title)
     fig.savefig(folder + str(len(set(groups))) + '_clustermap_cobinding_enrichment_andrewplot.pdf')
     plt.show()
+
+
+class SeabornFig2Grid():
+    """
+    call it as a function to make grid seaborn plots
+    """
+
+    def __init__(self, seaborngrid, fig,  subplot_spec):
+        self.fig = fig
+        self.sg = seaborngrid
+        self.subplot = subplot_spec
+        if isinstance(self.sg, sns.axisgrid.FacetGrid) or \
+            isinstance(self.sg, sns.axisgrid.PairGrid):
+            self._movegrid()
+        elif isinstance(self.sg, sns.axisgrid.JointGrid):
+            self._movejointgrid()
+        self._finalize()
+
+    def _movegrid(self):
+        """ Move PairGrid or Facetgrid """
+        self._resize()
+        n = self.sg.axes.shape[0]
+        m = self.sg.axes.shape[1]
+        self.subgrid = gridspec.GridSpecFromSubplotSpec(n,m, subplot_spec=self.subplot)
+        for i in range(n):
+            for j in range(m):
+                self._moveaxes(self.sg.axes[i,j], self.subgrid[i,j])
+
+    def _movejointgrid(self):
+        """ Move Jointgrid """
+        h= self.sg.ax_joint.get_position().height
+        h2= self.sg.ax_marg_x.get_position().height
+        r = int(np.round(h/h2))
+        self._resize()
+        self.subgrid = gridspec.GridSpecFromSubplotSpec(r+1,r+1, subplot_spec=self.subplot)
+
+        self._moveaxes(self.sg.ax_joint, self.subgrid[1:, :-1])
+        self._moveaxes(self.sg.ax_marg_x, self.subgrid[0, :-1])
+        self._moveaxes(self.sg.ax_marg_y, self.subgrid[1:, -1])
+
+    def _moveaxes(self, ax, gs):
+        #https://stackoverflow.com/a/46906599/4124317
+        ax.remove()
+        ax.figure=self.fig
+        self.fig.axes.append(ax)
+        self.fig.add_axes(ax)
+        ax._subplotspec = gs
+        ax.set_position(gs.get_position(self.fig))
+        ax.set_subplotspec(gs)
+
+    def _finalize(self):
+        plt.close(self.sg.fig)
+        self.fig.canvas.mpl_connect("resize_event", self._resize)
+        self.fig.canvas.draw()
+
+    def _resize(self, evt=None):
+        self.sg.fig.set_size_inches(self.fig.get_size_inches())

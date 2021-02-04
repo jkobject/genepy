@@ -38,11 +38,21 @@ chroms = {'chr1','chr10','chr11','chr12','chr13','chr14','chr15','chr16','chr17'
 def bigWigFrom(bams, folder="", numthreads=8, genome='GRCh37', scaling=None, verbose=1):
 	"""
 	run the bigwig command line for a set of bam files in a folder
+
+	Args:
+	-----
+		bams: list[str] of bam file path
+		folder: str folder to save them to
+		numthreads: int numbe of parallel threads
+		genome: reference genome to use (for genome size compute)
+		scaling: float an aditional scaling factor if you have
+		verbose: int verbose level
+
 	"""
 	if "bigwig" not in os.listdir(folder if folder else '.'):
 		os.mkdir(folder + "bigwig")
 	for i, bam in enumerate(bams):
-		in1 = folder + bam
+		in1 = bam
 		out1 = folder + "bigwig/" + bam.split('/')[-1].split('.')[0] + '.bw'
 		cmd = "bamCoverage --effectiveGenomeSize " + str(size[genome]) + " -p " + str(numthreads) +\
 			" -b " + in1 + " -o " + out1
@@ -56,6 +66,19 @@ def bigWigFrom(bams, folder="", numthreads=8, genome='GRCh37', scaling=None, ver
 
 
 def ReadRoseSuperEnhancers(roseFolder, containsINPUT=True, name="MV411"):
+	"""
+	from a folder containing rose outputs, returns a dataframe of the resulting bed file
+
+	Args:
+	-----
+		roseFolder: str folder path of the rose results
+		containsINPUT: bool whether it has an INPUT column
+		name: str name of the sample
+
+	Returns:
+	-------
+
+	"""
 	beds = os.listdir(roseFolder)
 	superenhan = pd.DataFrame()
 	for i in beds:
@@ -71,9 +94,21 @@ def ReadRoseSuperEnhancers(roseFolder, containsINPUT=True, name="MV411"):
 	return superenhan.sort_values(by=['chrom','start','end'])
 
 
-def loadPeaks(peakFile=None,peakfolder=None, isMacs=True, CTFlist=[], skiprows=0):
-	# for each data peak type file listed in a MACS2 way in a given MACS2 output folder, will merge them
-	# all into one dataframe and output the dataframe
+def loadPeaks(peakFile=None, peakfolder=None, isMacs=True, CTFlist=[], skiprows=0):
+	"""
+	will merge them file listed in a MACS2-way in a given MACS2 output folder all into one dataframe
+
+	Args:
+	----
+		peakFile: str filepaht if just one peakfile that you want to load (else leave it empty)
+		peakfolder: str folder path where the bedfiles (or macs2 folders are, if isMacs) (if peakfile, leave this empty)
+		isMacs: bool true if the folder is the MACS2 output folder (containing folder with samples folders with /NA_peaks peaks)
+		CTFlist: list[str] of samples, if only loading a specific set of samples
+
+	Returns:
+	-------
+		pd Dataframe of a merged set of peaks across all files in folders or of the peakfile
+	"""
 	if peakfolder:
 		bindings = pd.DataFrame()
 		for folder in os.listdir(peakfolder):
@@ -120,75 +155,93 @@ def loadPeaks(peakFile=None,peakfolder=None, isMacs=True, CTFlist=[], skiprows=0
 	return bindings
 
 
-def pysam_getPeaksAt(peaks, bams, folder='data/seqs/', window=1000, numpeaks=1000, numthreads=8):
+# def pysam_getPeaksAt(peaks, bams, folder='data/seqs/', window=1000, numpeaks=1000, numthreads=8):
 
-	# get pysam data
-	# ask for counts only at specific locus based on windows from center+-size from sorted MYC peaks
-	# for each counts, do a rolling average (or a convolving of the data) with numpy
-	# append to an array
-	# return array, normalized
-	loaded = {}
-	res = {i: np.zeros((len(peaks), window * 2)) for i in bams}
-	peaks = peaks.sort_values(by="foldchange", ascending=False).iloc[:numpeaks]
-	peaks.chrom = peaks.chrom.astype(str)
-	for val in bams:
-		loaded.update({val: pysam.AlignmentFile(folder + val, 'rb', threads=numthreads)})
-	for k, bam in loaded.items():
-		for num, (i, val) in enumerate(peaks.iterrows()):
-			print(int(num / len(peaks)), end='\r')
-			center = int((val['start'] + val['end']) / 2)
-			for pileupcolumn in bam.pileup(val['chrom'], start=center - window,
-										   stop=center + window, truncate=True):
-				res[k][num][pileupcolumn.pos - (center - window)] = pileupcolumn.n
-	fig, ax = plt.subplots(1, len(res))
-	for i, (k, val) in enumerate(res.items()):
-		sns.heatmap(val, ax=ax[i])
-		ax[i].set_title(k.split('.')[0])
-	fig.show()
-	return res, fig
-
-
-def bedtools_getPeaksAt(peaks, bams, folder='data/seqs/', window=1000, numpeaks=1000, numthreads=8):
-	"""
-	get pysam data
-	ask for counts only at specific locus based on windows from center+-size from sorted MYC peaks
-	for each counts, do a rolling average (or a convolving of the data) with numpy
-	append to an array
-	return array, normalized
-	"""
-	loaded = {}
-	center = [int((val['start'] + val['end']) / 2) for k, val in peaks.iterrows()]
-	peaks['start'] = [c - window for c in center]
-	peaks['end'] = [c + window - 1 for c in center]
-	peaks[peaks.columns[:3]].sort_values(by=['chrom', 'start']).to_csv('temp/peaks.bed', sep='\t', index=False, header=False)
-	bedpeaks = BedTool('temp/peaks.bed')
-
-	fig, ax = plt.subplots(1, len(bams))
-	peakset = peaks["foldchange"].values.argsort()[::-1][:numpeaks]
-	for i, val in enumerate(bams):
-		coverage = BedTool(folder + val).intersect(bedpeaks).genome_coverage(bga=True, split=True)\
-			.intersect(bedpeaks).to_dataframe(names=['chrom', 'start', 'end', 'coverage'])
-		cov = np.zeros((len(peaks), window * 2), dtype=int)
-		j = 0
-		pdb.set_trace()
-		for i, (k, val) in enumerate(peaks.iterrows()):
-			print(i / len(peaks), end='\r')
-			while coverage.iloc[j].start > val.start:
-				j -= 1
-			while coverage.iloc[j].start < val.end:
-				cov[i][coverage.iloc[j].start - val.start:coverage.iloc[j].end - val.start] =\
-					coverage.iloc[j].coverage
-				j += 1
-		sns.heatmap(coverage, ax=ax[i])
-		ax[i].set_title(val.split('.')[0])
-	fig.show()
-	return None, fig
+# 	# get pysam data
+# 	# ask for counts only at specific locus based on windows from center+-size from sorted MYC peaks
+# 	# for each counts, do a rolling average (or a convolving of the data) with numpy
+# 	# append to an array
+# 	# return array, normalized
+# 	loaded = {}
+# 	res = {i: np.zeros((len(peaks), window * 2)) for i in bams}
+# 	peaks = peaks.sort_values(by="foldchange", ascending=False).iloc[:numpeaks]
+# 	peaks.chrom = peaks.chrom.astype(str)
+# 	for val in bams:
+# 		loaded.update({val: pysam.AlignmentFile(folder + val, 'rb', threads=numthreads)})
+# 	for k, bam in loaded.items():
+# 		for num, (i, val) in enumerate(peaks.iterrows()):
+# 			print(int(num / len(peaks)), end='\r')
+# 			center = int((val['start'] + val['end']) / 2)
+# 			for pileupcolumn in bam.pileup(val['chrom'], start=center - window,
+# 										   stop=center + window, truncate=True):
+# 				res[k][num][pileupcolumn.pos - (center - window)] = pileupcolumn.n
+# 	fig, ax = plt.subplots(1, len(res))
+# 	for i, (k, val) in enumerate(res.items()):
+# 		sns.heatmap(val, ax=ax[i])
+# 		ax[i].set_title(k.split('.')[0])
+# 	fig.show()
+# 	return res, fig
 
 
-def makeProfiles(matx=[], folder='', matnames=[], title='',
-				   name='temp/peaksat.pdf', refpoint="TSS", scale=None,
-				   sort=False, withDeeptools=True, cluster=1, vmax=None, vmin=None, overlap=False,
+# def bedtools_getPeaksAt(peaks, bams, folder='data/seqs/', window=1000, numpeaks=1000, numthreads=8):
+# 	"""
+# 	get pysam data
+# 	ask for counts only at specific locus based on windows from center+-size from sorted MYC peaks
+# 	for each counts, do a rolling average (or a convolving of the data) with numpy
+# 	append to an array
+# 	return array, normalized
+# 	"""
+# 	loaded = {}
+# 	center = [int((val['start'] + val['end']) / 2) for k, val in peaks.iterrows()]
+# 	peaks['start'] = [c - window for c in center]
+# 	peaks['end'] = [c + window - 1 for c in center]
+# 	peaks[peaks.columns[:3]].sort_values(by=['chrom', 'start']).to_csv('temp/peaks.bed', sep='\t', index=False, header=False)
+# 	bedpeaks = BedTool('temp/peaks.bed')
+
+# 	fig, ax = plt.subplots(1, len(bams))
+# 	peakset = peaks["foldchange"].values.argsort()[::-1][:numpeaks]
+# 	for i, val in enumerate(bams):
+# 		coverage = BedTool(folder + val).intersect(bedpeaks).genome_coverage(bga=True, split=True)\
+# 			.intersect(bedpeaks).to_dataframe(names=['chrom', 'start', 'end', 'coverage'])
+# 		cov = np.zeros((len(peaks), window * 2), dtype=int)
+# 		j = 0
+# 		pdb.set_trace()
+# 		for i, (k, val) in enumerate(peaks.iterrows()):
+# 			print(i / len(peaks), end='\r')
+# 			while coverage.iloc[j].start > val.start:
+# 				j -= 1
+# 			while coverage.iloc[j].start < val.end:
+# 				cov[i][coverage.iloc[j].start - val.start:coverage.iloc[j].end - val.start] =\
+# 					coverage.iloc[j].coverage
+# 				j += 1
+# 		sns.heatmap(coverage, ax=ax[i])
+# 		ax[i].set_title(val.split('.')[0])
+# 	fig.show()
+# 	return None, fig
+
+
+def makeDifferentialProfiles(matx=[],  matnames=[], title='',
+				   name='temp/peaksat.pdf', refpoint="TSS",
+				  withDeeptools=True, cluster=1, vmax=None, vmin=None,
 				   legendLoc=None):
+	"""
+	Given two Matrix from a previous plotting operation of DeepTools, joins them.
+	
+	Will join them into the same plot in(you need to have used the same intervals for both)
+
+	Args:
+	-----
+		matx: list[str] filepaths fo the two matfiles
+		matnames: list[str] names of each files (e.g. different conditions)
+		title: str: title of the plot
+		name: str filepath of the output plot
+		refpoint: str possible location name (TSS, Peak, ...) in x axis in the plot
+		cluster:
+		vmax
+		vmin
+		legendLoc
+
+	"""
 	if withDeeptools:
 		if not (len(matnames) == 2 and len(matx) == 2):
 			raise ValueError('you need two mat.gz files and two names')
@@ -1016,9 +1069,14 @@ def enrichment(bedfile, bedcol=8, groups=None, okpval=10**-3):
 			overlapping = dat[groups==i]
 			for j,val in enumerate(overlapping.T):
 				# enrichment of j in i
+				inobs = len(val[val != 0])
+				notinobs = len(val[val == 0])
+				inpred = prob[j]*len(dat)
+				notinpred = (1-prob[j])*len(dat)
+				
 				e, p = fisher_exact([
-					[len(val[val != 0]), len(val[val == 0])],
-					[prob[j]*len(dat), (1-prob[j])*len(dat)]])
+					[max(1,inobs), max(1,notinobs)],
+					[max(1,inpred), max(1,notinpred)]])
 				enrichment[i, j] = np.log2(e)
 				pvals[i, j] = p
 	else:
@@ -1036,9 +1094,9 @@ def enrichment(bedfile, bedcol=8, groups=None, okpval=10**-3):
 				pvals[i, j+add] = p
 		enrichment[i,i]=0
 	enrichment = pd.DataFrame(data=enrichment, index=bedfile.columns[bedcol:] if groups is None else set(groups), columns=bedfile.columns[bedcol:]).T
-	enrichment[enrichment==-np.inf] = -1000
+	enrichment[enrichment<-1000] = -1000
 	enrichment[enrichment.isna()] = 0
-	enrichment[enrichment == np.inf] = 1000
+	enrichment[enrichment > 1000] = 1000
 	pvals = np.reshape(multipletests(pvals.ravel(),
 									 0.1, method="bonferroni")[1], pvals.shape)
 	pvals = pd.DataFrame(
@@ -1093,24 +1151,24 @@ def findAdditionalCobindingSignal(conscensus, known=None, bigwigs=[], window=100
 
 
 
-def annotatePeaks():
-	"""
-	get H3k27AC peaks and compute Rose
-	for each TF peak
-	assign super enhancer if within it and create a super enhancer TFgroup
-	for each peaks
-	apply similar to rose and merge TF together. (create new TFgroup)
-	for each TF groups say
-	  if within super enhancer
-	  if within high h3k27ac marks
-	  its nearest gene (distance to it, cis/trans)
+# def annotatePeaks():
+# 	"""
+# 	get H3k27AC peaks and compute Rose
+# 	for each TF peak
+# 	assign super enhancer if within it and create a super enhancer TFgroup
+# 	for each peaks
+# 	apply similar to rose and merge TF together. (create new TFgroup)
+# 	for each TF groups say
+# 	  if within super enhancer
+# 	  if within high h3k27ac marks
+# 	  its nearest gene (distance to it, cis/trans)
 
 
-	FIND A WAY TO FILTER TO ONLY PLACES WITH H3K27AC marks??
+# 	FIND A WAY TO FILTER TO ONLY PLACES WITH H3K27AC marks??
 
-	TAD points where most contacts on one side happened on this side.
-	specific distance. zone of most concentration of contacts for a peak region.
-	"""
+# 	TAD points where most contacts on one side happened on this side.
+# 	specific distance. zone of most concentration of contacts for a peak region.
+# 	"""
 	# if way == 'Closest':
 
 	# elif way == 'ClosestExpressed':
@@ -1124,18 +1182,18 @@ def annotatePeaks():
 # os.system()
 
 
-def getCoLocalization():
-	"""
-	for each annotations (super enhancer & TFgroups)
-	for each TF, find highest peak/meanCov. if above thresh add to localization
-	"""
+# def getCoLocalization():
+# 	"""
+# 	for each annotations (super enhancer & TFgroups)
+# 	for each TF, find highest peak/meanCov. if above thresh add to localization
+# 	"""
 
 
-def refineGroupsWithHiC():
-	"""
-	given HiC data, for each loops (should be less than X Mb distance. create a Xkb zone around both sides
-	and find + merge each TF/TFgroup at this location)
-	"""
+# def refineGroupsWithHiC():
+# 	"""
+# 	given HiC data, for each loops (should be less than X Mb distance. create a Xkb zone around both sides
+# 	and find + merge each TF/TFgroup at this location)
+# 	"""
 
 
 def fullDiffPeak(bam1, bam2, control1, size=None, control2=None, scaling=None, directory='diffData/',
@@ -1211,10 +1269,10 @@ def diffPeak(name1, name2, control1, control2, res_directory, scaling1, scaling2
 	return res
 
 
-def AssignToClosestExpressed(bed,countFile,genelocFile):
-	print("the bed file and genelocFile should use the same assembly")
-	genelocFile = pd.read_csv(genelocFile,sep="\t", compression="", columns=['chrom','start','end',"name"])
-	#for val in bed.iterrows():
+# def AssignToClosestExpressed(bed,countFile,genelocFile):
+# 	print("the bed file and genelocFile should use the same assembly")
+# 	genelocFile = pd.read_csv(genelocFile,sep="\t", compression="", columns=['chrom','start','end',"name"])
+# 	#for val in bed.iterrows():
 
 
 def MakeSuperEnhancers(MACS2bed, bamFile, outdir, baiFile=None, rosePath=".",

@@ -457,3 +457,9 @@ def stringifydict(res):
         else:
             a[str(k)] = v
     return a
+
+def list_to_str(l):
+    """
+    convert a list into a string in a better way than original python
+    """
+    return str(l).replace("'","").replace(",","")[1:-1]
