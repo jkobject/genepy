@@ -7,10 +7,10 @@ import warnings
 from matplotlib import pyplot as plt
 from bokeh.palettes import *
 from bokeh.plotting import *
-from JKBio.utils import helper as h
 from JKBio.rna import pyDESeq2
+from JKBio.utils import helper as h
 import pdb
-import os 
+import os
 import seaborn as sns
 import gseapy
 import pandas as pd
@@ -103,7 +103,7 @@ def getSpikeInControlScales(refgenome, fastq=None, fastQfolder='', mapper='bwa',
     """
     Will extract the spikeInControls from a fastq file (usefull for, let say ChIPseq data with spike ins)
 
-    Count based sequencing data is not absolute and will be normalized as each sample will be sequenced at a specific depth. 
+    Count based sequencing data is not absolute and will be normalized as each sample will be sequenced at a specific depth.
     To figure out what was the actual sample concentration, we use Spike In control
     You should have FastQfolder/[NAME].fastq & BigWigFolder/[NAME].bw with NAME being the same for the same samples
 
@@ -228,7 +228,7 @@ def GSEAonExperiments(data, experiments, res={}, savename='', scaling=[], genese
       cleanfunc: a func applied to the names of the gene sets to change it in some way (often to make it more readable)
     Returns
     -------
-      plots the results 
+      plots the results
       1: returns a matrix with the enrichment for each term for each experiment
       2: returns a dict(experiment:pd.df) with dataframe being the output of GSEA (with pvalues etc..) for each experiments
     """
@@ -273,7 +273,7 @@ def GSEAonExperiments(data, experiments, res={}, savename='', scaling=[], genese
 
 
 def runERCC(ERCC, experiments, featurename="Feature", issingle=False, dilution=1 / 100,
-            name="RNPv2", spikevol=1, control="AAAVS1", fdr=0.1, totalrnamass=0.5):
+            name="RNPv2", spikevol=1, control="AAVS1", fdr=0.1, totalrnamass=0.5):
     """
     Runs the ERCC dashboard Rpackage on your notebook
 
@@ -304,6 +304,7 @@ def runERCC(ERCC, experiments, featurename="Feature", issingle=False, dilution=1
         ipython = get_ipython()
     except:
         raise RuntimeError('you need to be on ipython')
+    print('you need to have R installed with the erccdashboard library installed')
     ipython.magic("load_ext rpy2.ipython")
     ipython.magic("R library('erccdashboard')")
     # "count" for RNA-Seq data, "array" for microarray data
@@ -316,7 +317,7 @@ def runERCC(ERCC, experiments, featurename="Feature", issingle=False, dilution=1
     ipython.magic("R -i control sample2Name = control")
     # name of ERCC mixture design, "RatioPair" is default
     ipython.magic(
-        "R -i issingle erccmix < - if(issingle) 'Single' else 'RatioPair'")
+        "R -i issingle erccmix <- if(issingle) 'Single' else 'RatioPair'")
     # dilution factor used for Ambion spike-in mixtures
     ipython.magic("R -i dilution erccdilution = dilution")
     # volume (in microliters) of diluted spike-in mixture added to total RNA mass
@@ -324,7 +325,7 @@ def runERCC(ERCC, experiments, featurename="Feature", issingle=False, dilution=1
     # user defined false discovery rate (FDR), default is 0.05
     ipython.magic("R -i fdr choseFDR = fdr")
     ipython.magic("R exDat = ''")
-    ipython.magic("R - i totalrnamass totalRNAmass < - totalrnamass")
+    ipython.magic("R -i totalrnamass totalRNAmass <- totalrnamass")
 
     cols = list(ERCC.columns)
     cols.sort()
@@ -336,7 +337,7 @@ def runERCC(ERCC, experiments, featurename="Feature", issingle=False, dilution=1
         d.update({
             featurename: 'Feature'
         })
-        for i in cols[:-1]:
+        for i in cols:
             if val + '-' in i:
                 e += 1
                 d.update({i: val.split('_')[-1] + '_' + str(e)})
@@ -355,7 +356,7 @@ def runERCC(ERCC, experiments, featurename="Feature", issingle=False, dilution=1
 
         try:
 
-            ipython.magic("R - i val exDat = initDat(datType=datType, isNorm=isNorm, exTable=a,\
+            ipython.magic("R -i val exDat = initDat(datType=datType, isNorm=isNorm, exTable=a,\
                                  filenameRoot=filenameRoot, sample1Name=val,\
                                  sample2Name=sample2Name, erccmix=erccmix,\
                                  erccdilution=erccdilution, spikeVol=spikeVol,\
@@ -376,8 +377,10 @@ def runERCC(ERCC, experiments, featurename="Feature", issingle=False, dilution=1
 
         ipython.magic("R -o rm rm <- exDat$Results$r_m.res$r_m.mn")
         ipython.magic("R -o se se <- exDat$Results$r_m.res$r_m.mnse")
-
-        res[val] = (rm[0], se[0])
+        ipython.magic("R write.csv(c(rm,se), file = '/tmp/JKBIO_ercc.csv')")
+        ipython.magic("R print(se,rm)")
+        l = h.fileToList("/tmp/JKBIO_ercc.csv")
+        res[val] = (float(l[1][4:]), float(l[2][4:]))
     for i, v in res.items():
         if abs(v[0]) > v[1]:
             print(i, v[0])
@@ -419,7 +422,7 @@ def mergeSplicingVariants(df, defined='.'):
 def readFromSlamdunk(loc='res/count/', flag_var=100, convertTo='symbol',
                      minvar_toremove=0, mincount_toremove=5):
     """
-    
+
     Args:
     -----
 
@@ -496,23 +499,34 @@ def DESeqSamples(data, experiments, scaling=None, keep=True, rescaling=None, res
 
     Returns:
     ------
-    
+
     """
     if "gene_id" not in list(data.columns):
         print("using index as gene_id")
         data['gene_id'] = data.index
     warnings.simplefilter("ignore")
-    for val in experiments:
+    if type(controlcontain) is str:
+        controlcontain = [controlcontain]*len(experiments)
+    for j, val in enumerate(experiments):
         print(val)
         cond = [1 if val+'-' in i else 0 for i in data.columns[:-1]]
-        contr = [1 if controlcontain in i else 0 for i in data.columns[:-1]]
+        contr = [1 if controlcontain[j] in i else 0 for i in data.columns[:-1]]
         design = pd.DataFrame(index=data.columns[:-1], columns=['DMSO', 'Target'],
                               data=np.array([contr, cond]).T)
         design.index = design.index.astype(str).str.replace('-', '.')
         deseq = pyDESeq2.pyDESeq2(count_matrix=data, design_matrix=design,
                                   design_formula='~DMSO + Target', gene_column="gene_id")
-        if scaling is not None:
+        if type(scaling) is bool:
+            print("scaling using ERCC")
+            if scaling:
+                deseq.run_estimate_size_factors(
+                    controlGenes=data.gene_id.str.contains(spikecontrolscontain))
+        elif type(scaling) is list or type(scaling) is set:
+            print("scaling using a gene set")
+            deseq.run_estimate_size_factors(controlGenes=data.gene_id.isin(scaling))
+        elif type(scaling) is dict:
             if val in scaling:
+                print("auto scaling from ERCCdashboard mean/std values")
                 if abs(scaling[val][0]) > threshforscaling*scaling[val][1]:
                     print("  estimating sizeFactors for this one")
                     deseq.run_estimate_size_factors(
@@ -538,6 +552,7 @@ def DESeqSamples(data, experiments, scaling=None, keep=True, rescaling=None, res
 
 
 def gsva(data, geneset_file, pathtoJKBio, method='ssgsea'):
+  print('you need to have R installed with GSVA and GSEABase library installed')
   data.to_csv('/tmp/data_JKBIOhelper_gsva.csv')
   cmd = "Rscript "+pathtoJKBio + \
       "/rna/ssGSEA.R /tmp/data_JKBIOhelper_gsva.csv " + geneset_file + " " + method
@@ -674,3 +689,103 @@ def getDifferencesFromCorrelations(df1, df2, minsimi=0.99999999999999):
             print(k+" not in second df")
     print("found "+str(len(res))+" samples that did not match")
     return res
+
+
+def rnaseqcorrelation(cn, rna, ax=None, name=None):
+  """
+  correlates the copy number to the rnaseq in ccle and shows the plot
+
+  Gene names should be thee same ones, sample names as welll
+  """
+  a = set(cn.columns) & set(rna.columns)
+  ind = set(cn.index) & set(rna.index)
+  re = rna.loc[ind]
+  ce = cn.loc[ind]
+  print(len(ind), len(a))
+  corr = np.array([pearsonr(ce[j], re[j])[0] for j in a])
+  #corr = pd.DataFrame(data=corr, columns=[name if name is not None else "data"])
+  print(np.mean(corr), len(corr))
+  sns.kdeplot(corr, ax=ax) if ax is not None else sns.kdeplot(corr)
+
+
+def findMissAnnotatedReplicates(repprofiles, goodprofile, names, exactMatch=True):
+  """
+  from a new rnaseq profile on replicate level and a good rnaseq profile on sample level
+
+  will if some replicates are missanotated based on correlation.
+
+  Returns:
+  -------
+      notindataset: list[str] replicates not in the good dataset
+      missannotated: dict(str: tuple(str,str)).  dict containing replicates that are missanotated: for each, gives a tuple (old annotation, right annotation)
+  """
+  notindataset = []
+  missannotated = {}
+  unmatched = {}
+  if exactMatch:
+    res = findClosestMatching(repprofiles, goodprofile)
+    for val in repprofiles.index.tolist():
+        if val not in res:
+            notindataset.append(val)
+        elif val not in names:
+            unmatched.update({val: res[val]})
+        elif res[val] != names[val]:
+            missannotated.update({val: (names[val], res[val])})
+    return notindataset, missannotated, unmatched
+  else:
+    corr, closest = findClosestMatching(
+        repprofiles, goodprofile, returncorr=True)
+    for k, v in corr.iterrows():
+      print(k, v.mean())
+      try:
+          if v[names[k]] < 0.75:
+              print(v[[closest[k], names[k]]])
+      except:
+          a = np.argsort(v.values)[-5:]
+          if v.values[a[-1]] > 0.8:
+              print(names[k],
+                    corr.columns[a], v.values[a])
+
+
+def findClosestMatching(repprofiles, goodprofile, closest=False, returncorr=False):
+  """
+  will find what replicate matches best what known profile using numpy's corrcoef
+
+  Args:
+  -----
+    repprofiles: dataframe the new  expression profile to test against: dfs should be SAMPLESxGENE
+    goodprofile: dataframe the known- expression profile
+    closest: bool whether to rerturn the closest matching or just the one that matches perfectly, if any
+    returncorr: bool to return the full corelation matrix
+
+  Returns:
+  --------
+    match: dict(id:id) listing samples that are the closest for all samples
+    corr: dataframe of correlations if requested
+
+  """
+  match = {}
+  a = set(repprofiles.columns) & set(goodprofile.columns)
+  ind = goodprofile.index.tolist()
+  corr = []
+  for i, (k, v) in enumerate(repprofiles[a].iterrows()):
+      h.showcount(i, len(repprofiles))
+      res = np.array([np.corrcoef(v, w)[0, 1]
+                      for _, w in goodprofile[a].iterrows()])
+      if max(res) == 1 or closest:
+          match[k] = ind[np.argmax(res)]
+      if returncorr:
+        corr.append(res)
+  if returncorr:
+    corr = pd.DataFrame(data=corr, index=repprofiles.index.tolist(
+    ), columns=goodprofile.index.tolist())
+    return match, corr
+  else:
+    return match
+
+
+def renameFusionGene(a):
+  """
+  Given a fusion name from star-fusion, renames it
+  """
+  return [str(i.split('^')).replace(', ', ' (').replace("'", "")[1:-1]+')' for i in a]

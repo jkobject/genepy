@@ -44,6 +44,7 @@ class pyDESeq2:
   '''
 
   def __init__(self, count_matrix, design_matrix, design_formula, gene_column='id'):
+    print("you need to have R installed with the DESeq2 library installed")
     try:
       assert gene_column in count_matrix.columns, 'Wrong gene id column name'
       gene_id = count_matrix[gene_column]

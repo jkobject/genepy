@@ -117,7 +117,7 @@ def batchRename(dt, folder='', sudo=False, doAll=False, add='', dryrun=False):
                 if add:
                     cmd += add + ' '
                 if not doAll:
-                    cmd += folder 
+                    cmd += folder
                 cmd += f
                 cmd += ' '
                 if not doAll:
@@ -357,41 +357,50 @@ def datetoint(dt, split='-', unknown='U', order="des"):
 
 
 def showcount(i, size):
-    """
-    pretty print of i/size%, to put in a for loop
-    """
-    print(str(1 + int(100 * (i / size))) + '%', end='\r')
+  """
+  pretty print of i/size%, to put in a for loop
+  """
+  print(str(1 + int(100 * (i / size))) + '%', end='\r')
 
 
 def combin(n, k):
-    """
-    Nombre de combinaisons de n objets pris k a k
-    Number of comabination of n object taken k at a time
-    """
-    if k > n // 2:
-        k = n - k
-    x = 1
-    y = 1
-    i = n - k + 1
-    while i <= n:
-        x = (x * i) // y
-        y += 1
-        i += 1
-    return x
+  """
+  Nombre de combinaisons de n objets pris k a k
+  outputs the number of comabination of n object taken k at a time
+  """
+  if k > n // 2:
+    k = n - k
+  x = 1
+  y = 1
+  i = n - k + 1
+  while i <= n:
+    x = (x * i) // y
+    y += 1
+    i += 1
+  return x
 
 
 def dups(lst):
-    seen = set()
-    # adds all elements it doesn't know yet to seen and all other to seen_twice
-    seen_twice = set(x for x in lst if x in seen or seen.add(x))
-    # turn the set into a list (as requested)
-    return list(seen_twice)
+  """
+	shows the duplicates in a list
+  """
+  seen = set()
+  # adds all elements it doesn't know yet to seen and all other to seen_twice
+  seen_twice = set(x for x in lst if x in seen or seen.add(x))
+  # turn the set into a list (as requested)
+  return list(seen_twice)
 
 def makeCombinations(size, proba):
     """
-    produces probability of X event happening at the same time given binomial proba of event occuring
-    
-    pretty usefull for cobinding analysis
+    produces probability of X event happening at the same time
+
+    pretty usefull for cobinding analysis. wil compute it
+    given binomial probabilities of each event occuring and the number of trials
+
+    Args:
+    -----
+      size: int number of trials
+      proba: list[float] probabilities of each event occuring
     """
     sums = {i:0 for i in range(1,size)}
     for i in range(size-1,0,-1):
@@ -411,12 +420,17 @@ def makeCombinations(size, proba):
     return sums
 
 def closest(lst, K):
-    return lst[min(range(len(lst)), key = lambda i: abs(lst[i]-K))] 
+  """
+  returns the index of the value closest to K in a lst
+  """
+  return lst[min(range(len(lst)), key = lambda i: abs(lst[i]-K))]
 
 
 def compareDfs(df1, df2):
     """
     compares df1 to df2
+
+    shows col difference, index difference, nans & 0s differences
     """
     nmissmatchCols = set(df1.columns)-set(df2.columns)
     omissmatchCols = set(df2.columns)-set(df1.columns)
@@ -431,3 +445,21 @@ def compareDfs(df1, df2):
     print('FOUND new NAs in df1: ' + str(newNAs))
     print('FOUND new 0s in df1: ' + str(new0s))
     return nmissmatchCols, omissmatchCols, nmissmatchInds, omissmatchInds, newNAs, new0s
+
+def stringifydict(res):
+    """
+    
+    """
+    a = {}
+    for k,v in res.items():
+        if type(v) is dict:
+            a[k] = stringifydict(v)
+        else:
+            a[str(k)] = v
+    return a
+
+def list_to_str(l):
+    """
+    convert a list into a string in a better way than original python
+    """
+    return str(l).replace("'","").replace(",","")[1:-1]

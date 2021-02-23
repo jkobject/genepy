@@ -4,17 +4,33 @@
 
 from __future__ import print_function
 
-import pdb
-import ipdb
 import pandas as pd
 import numpy as np
+from JKBio.utils import helper as h
+import gzip
+import seaborn as sns
 
 from taigapy import TaigaClient
 tc = TaigaClient()
 
-def vcf_to_df(path, hasfilter=False, samples=['sample'], additional_unique=[]):
+def vcf_to_df(path, hasfilter=False, samples=['sample'], additional_cols=[]):
+    """
+    transforms a vcf file into a dataframe file as best as it can
+
+    Args:
+    -----
+      path: str filepath to the vcf file
+      hasfilter: bool whether or not the vcf has a filter column
+      samples: list[str] colnames of the sample names.
+      additional_cols: list[str] of additional colnames in the vcf already looks for 'DB', 'SOMATIC', 'GERMLINE', "OVERLAP", "IN_PON", "STR", "ReverseComplementedAlleles"
+
+    Returns:
+    --------
+      a dataframe fo the vcf
+      a dict associating each column with its description (gathered from the vcf header)
+    """
     uniqueargs = ['DB', 'SOMATIC', 'GERMLINE', "OVERLAP", "IN_PON",
-                  "STR", "ReverseComplementedAlleles"] + additional_unique
+                  "STR", "ReverseComplementedAlleles"] + additional_cols
 
     def read_comments(f):
         fields = {}
@@ -69,3 +85,290 @@ def vcf_to_df(path, hasfilter=False, samples=['sample'], additional_unique=[]):
         a = pd.concat([a.drop(columns=sample), pd.DataFrame(
             data=res, columns=sorting, index=a.index)], axis=1)
     return a.drop(columns='format'), description
+
+
+
+def mafToMat(maf, boolify=False, freqcol='tumor_f', samplesCol="DepMap_ID", mutNameCol="Hugo_Symbol"):
+  """
+  turns a maf file into a matrix of mutations x samples (works with multiple sample file)
+
+  Args:
+  -----
+    maf: dataframe of the maf file
+    sample_col: str colname for samples
+    boolify: bool whether or not to convert the matrix into a boolean (mut/no mut)
+    freqcol: str colname where ref/alt frequencies are stored
+    mutNameCol: str colname where mutation names are stored
+
+  Returns:
+  --------
+    the dataframe matrix
+  """
+  maf = maf.sort_values(by=mutNameCol)
+  samples = set(maf[samplesCol])
+  mut = pd.DataFrame(data=np.zeros((len(set(maf[mutNameCol])), 1)), columns=[
+                      'fake'], index=set(maf[mutNameCol])).astype(float)
+  for i, val in enumerate(samples):
+    h.showcount(i, len(samples))
+    mut = mut.join(maf[maf[samplesCol] == val].drop_duplicates(
+        mutNameCol).set_index(mutNameCol)[freqcol].rename(val))
+  return mut.fillna(0).astype(bool if boolify else float).drop(columns=['fake'])
+
+
+def mergeAnnotations(firstmaf, additionalmaf, Genome_Change="Genome_Change",
+Start_position="Start_position", Chromosome="Chromosome", samplename="DepMap_ID",
+useSecondForConflict=True, dry_run=False):
+  """
+  merges two maf files, taking carre of duplicate samples and duplicate (works with multiple sample file)
+
+  Args:
+  -----
+  firstmaf: dataframe the first maf file
+  additionalmaf: dataframe the second maf file (need to contain same colnames)
+  Genome_Change: str colnames of the Genome_Change column
+  Start_position: str colnames of the Start_position column
+  Chromosome: str colnames of the Chromosome column
+  samplename: str colnames of the samplename column (for multiple samples, even if one, needs to have this column)
+  useSecondForConflict: bool if false use the first df as reference else use the second one
+  dry_run: if true, will just output conflict regions and not merge the dataframes
+
+  Returns:
+  -------
+    dataframe of the maf file if not dryrun, else an np array of the merge issues
+  """
+  mutations = firstmaf.copy()
+  mutations['ind'] = mutations[samplename]+"_"+mutations[Genome_Change]
+  mutations['loci'] = mutations[samplename] + "_" + \
+      mutations[Chromosome] + "_" + mutations[Start_position].astype(str)
+  additionalmaf['ind'] = additionalmaf[samplename] + \
+      "_"+additionalmaf[Genome_Change]
+  additionalmaf['loci'] = additionalmaf[samplename] + "_" + \
+      additionalmaf[Chromosome] + "_" + \
+      additionalmaf[Start_position].astype(str)
+  inboth = set(additionalmaf['loci']) & set(mutations['loci'])
+  notineach = set(additionalmaf['ind']) ^ set(mutations['ind'])
+  submut = mutations[mutations.loci.isin(
+      inboth) & mutations.ind.isin(notineach)]
+  subother = additionalmaf[additionalmaf.loci.isin(
+      inboth) & additionalmaf.ind.isin(notineach)]
+  issues = None
+  if len(submut) > 0:
+    print("found " + str(len(submut)) + " nonmatching mutations")
+    issues = np.vstack([submut.sort_values(by='loci')[
+                        Genome_Change].values, subother.sort_values(by='loci')[Genome_Change].values]).T
+    if dry_run:
+      print(issues)
+  if not dry_run:
+    if issues is not None:
+      if useSecondForConflict:
+        mutations = mutations[~mutations.ind.isin(set(submut.ind))]
+      else:
+        additionalmaf = additionalmaf[~additionalmaf.ind.isin(
+            set(subother.ind))]
+      mutations = mutations.append(additionalmaf[additionalmaf['ind'].isin(
+          set(additionalmaf['ind']) - set(mutations['ind']))])
+    return mutations.drop(columns=['loci', 'ind']).sort_values(by=[samplename, Chromosome, Start_position])
+  else:
+    return issues
+
+
+def filterAllelicFraction(maf, loc=['CGA_WES_AC'], sep=':', frac=0.1):
+  """
+  filters a MAF file based on allelic fraction (works with multiple sample file)
+
+  Args:
+  -----
+    maf: dataframe of the maf file
+    loc: list[str] colnames with the ref:alt
+    sep: str separato between ref:alt
+    frac: float min fraction
+
+  Returns:
+  -------
+    dataframe of the maf file
+  """
+  muts = np.zeros((len(maf), 2))
+  for val in loc:
+    muts += np.array([[v[0], 0] if 'NA' in v else v for v in maf[val].fillna(
+        '0'+sep+'0').astype(str).str.split(sep).tolist()]).astype(int)
+  muts = muts[:, 0]/(muts[:, 0]+muts[:, 1])
+  return maf[muts >= frac]
+
+
+def filterCoverage(maf, loc=['CGA_WES_AC'], sep=':', cov=4, altloc=0):
+  """
+  filters a MAF file based on read coverage (works with multiple sample file)
+
+  Args:
+  -----
+    maf: dataframe of the maf file
+    loc: list[str] colnames with the ref:alt
+    sep: str separato between ref:alt
+    cov: min coverage
+    altloc: 0 to filter on alt and 1 to filter on ref
+
+  Returns:
+  -------
+    dataframe of the maf file
+  """
+  muts = np.zeros((len(maf), 2))
+  for val in loc:
+    muts += np.array([[v[0], 0] if 'NA' in v else v for v in maf[val].fillna(
+        '0'+sep+'0').astype(str).str.split(sep).tolist()]).astype(int)
+  return maf[muts[:, altloc] >= cov]
+
+
+
+def manageGapsInSegments(segtocp, Chromosome='Chromosome', End="End", Start="Start", cyto=None):
+  """
+  extends the ends of segments in a segment file from GATK so as to remove all gaps ove the genome (works with multiple sample file)
+
+  Args:
+  ----
+    segtocp: dataframe of segments from GATK CN pipeline
+    Chromosome: str the value for the Chromosome columns
+    End: str the value for the End columns
+    Start: str the value for the Start columns
+    cyto: dataframe with chrom;end; columns giving the size of each chromosome (else puts last segment to 1000000000)
+  """
+  prevchr = ''
+  prevend = 0
+  count = 0
+  l = []
+  segments = segtocp.copy()
+  le = len(segments)
+  for k, val in segments.iterrows():
+    h.showcount(count, le)
+    count += 1
+    if val[Chromosome] != prevchr:  # we changed chromosome
+      # we extend the previous segment (last of the prev chrom) to.. way enough
+      if len(l) > 0:
+        l[-1][2] = 1000000000 if cyto is None else cyto[cyto['chrom']
+                                                        == prevchr]['end'].values[-1]
+      # we extend the first segment to 0
+      l.append([val[Chromosome], 0, val[End]])
+    else:
+      if val[Start] > prevend + 1:  # we have a gap in the same chrom
+        sizeofgap = val[Start] - prevend
+        # we add to the previous one half of the gap
+        l[-1][2] += int(sizeofgap /
+                        2) if sizeofgap % 2 == 0 else int(sizeofgap / 2) + 1
+        # the rest to the other
+        l.append([val[Chromosome], val[Start] - int(sizeofgap / 2), val[End]])
+      elif val[Start] < prevend:  # this should never happen
+        raise ValueError("start comes after end")
+      else:
+        l.append([val[Chromosome], val[Start], val[End]])
+    prevchr = val[Chromosome]
+    prevend = val[End]
+  # we extend the last one
+  l[-1][2] = 1000000000 if cyto is None else cyto[cyto['chrom']
+                                                  == prevchr]['end'].values[-1]
+  segments[[Chromosome, Start, End]] = l
+  return segments
+
+
+def toGeneMatrix(segments, gene_mapping, style='weighted', missingchrom=['Y']):
+  """
+  makes a geneXsample matrix from segment level copy number (works with multiple sample file)
+
+  Args:
+  ----
+    style: str one of "weighted","mean","closest"
+    segments: dataframe of segments containing: [Chromosome, Segment_Mean, Chromosome, start, end] columns
+    gene_mapping: dataframe with symbol, ensembl_id columns for each gene
+    missingchrom: list[str] chromosomes not to look into
+
+  Returns:
+  -------
+    pd.dataframe: the matrix
+  """
+  samples = list(set(segments.DepMap_ID))
+  data = np.zeros((len(samples), len(gene_mapping)))
+  for i, sample in enumerate(samples):
+    segs = segments[segments.DepMap_ID == sample][[
+        'Chromosome', 'Start', 'End', "Segment_Mean"]].values
+    hasmissing = set(missingchrom) - set(segs[:, 0])
+    j = 0
+    h.showcount(i, len(samples))
+    for k, gene in enumerate(gene_mapping[['Chromosome', 'start', 'end']].values):
+        if gene[0] in hasmissing:
+          data[i, k] = np.nan
+          continue
+        while gene[0] != segs[j][0] or gene[1] >= segs[j][2]:
+          #print("went beyong",gene, segs[j])
+          j += 1
+        # some genes are within other genes, we need to go back in the list of segment in that case
+        while gene[1] < segs[j][1]:
+          j -= 1
+          #print("decrease gene",gene)
+        # we are entirely within the segment
+        c = 1
+        if gene[2] <= segs[j][2]:
+          data[i, k] = segs[j][3]
+        else:
+          # how much of the gene is covered by the segment
+          coef = (segs[j][2] - gene[1]) / (gene[2] - gene[1])
+          # print('coef',coef)
+          val = segs[j][3] * coef if style == "weighted" else segs[j][3]
+          end = segs[j][2]
+          # until the end of a segments goes beyon the end of the gene (say if we have X segments within the gene)
+          while end < gene[2]:
+            # pdb.set_trace()
+            j += 1
+            c += 1
+            nextend = segs[j][2] if segs[j][2] < gene[2] else gene[2]
+            # here, end (of prevsegment) is the next segment's start
+            ncoef = (nextend - end) / (gene[2] - gene[1])
+            # print('multi',gene, ncoef)
+            if style == "closest":
+              if ncoef > coef:
+                val = segs[j][3]
+              else:
+                # we switch it back (see line 894)
+                ncoef = coef
+            else:
+              val += segs[j][3] * ncoef if style == "weighted" else segs[j][3]
+            end = segs[j][2]
+            coef = ncoef
+          data[i, k] = val if style == "weighted" else val / c
+  return pd.DataFrame(data=data, index=samples, columns=[i['symbol'] + ' (' + str(i['ensembl_id']) + ')' for _, i in gene_mapping.iterrows()])
+
+
+def checkAmountOfSegments(segmentcn, thresh=850, samplecol="DepMap_ID"):
+  """
+  if there is too many segments, something might be wrong (works with multiple sample file)
+
+  will compute the number of segments for each samples from a df of segments from RSEM
+
+  Args:
+  ----
+    segmentcn: segment dataframe
+    thresh: max ok amount
+  """
+  failed = []
+  celllines = set(segmentcn[samplecol].tolist())
+  amounts = []
+  for cellline in celllines:
+    val = segmentcn[segmentcn[samplecol] == cellline].shape[0]
+    amounts.append(val)
+    if val > thresh:
+      failed.append(cellline)
+      print(cellline, val)
+  sns.kdeplot(amounts)
+  return failed
+
+
+def checkGeneChangeAccrossAll(genecn, thresh=0.2):
+  """
+  used to find poor quality genes in CN data (works with multiple sample file)
+
+  compute given a df of gene x sample CN counts, how much change there is accross samples for
+  a same gene and returns ones that are below the threshold
+
+  Args:
+  -----
+    genecn: gene cn data frame
+    thresh: threshold in logfold change accross all of them
+  """
+  return genecn.columns[genecn.var()<thresh].tolist()
