@@ -1,11 +1,12 @@
 from setuptools import setup
+import os
 
 with open("README.md", 'r') as f:
     long_description = f.read()
 
 setup(
     name='JKBio',
-    version='1.0',
+    version='1.1',
     description='A useful module for any CompBio',
     long_description = long_description,
     author='Jeremie Kalfon',
@@ -47,12 +48,18 @@ setup(
         "venn",
         ],  # external packages as dependencies
 )
-
 print("You might want to install Bowtie2, samtools, bwa and R to be able to use all functions of this package:\n\
   http://bowtie-bio.sourceforge.net/bowtie2/index.shtml\n\
   http://www.htslib.org/\n\
   https://github.com/lh3/bwa\n")
 
 print("once R is installed you need to have installed erccdashboard, GSEABase GSVA, DESeq2 to have access to aall the functions")
+
+print("trying to install the packages if R is already installed")
+
+os.system(
+    'R -e \'if(!requireNamespace("BiocManager", quietly=TRUE)){install.packages("BiocManager", repos = "http://cran.us.r-project.org")}; BiocManager::install(c("GSEABase", "erccdashboard", "GSVA", "DESeq2"))\'')
+
+
 
 print("Finished!")
