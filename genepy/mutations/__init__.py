@@ -239,7 +239,7 @@ def vcf_to_df(
     else:
         loc = data.SB.isna()
         data.loc[loc, "SB"] = data.loc[loc, "PGT"]
-        data.loc[loc, "PGT"] = None
+        data.loc[loc, "PGT"] = ""
     # sorting out issue with
     return data, description, dropped_cols
 
