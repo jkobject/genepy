@@ -1143,7 +1143,10 @@ def uploadWorkflows(workspaceID, workflows, path=None):
 
 
 def update_entities(workspace, etype, oetype, target_set=None):
-    """Attach entities (samples or pairs) to participants
+    """Attach entities etype to oetype table in workspace.
+
+    e.g. attach samples to participants.
+    etype table must contain oetype_id column. e.g. samples must have a participant_id column.
 
     Args:
     -----
