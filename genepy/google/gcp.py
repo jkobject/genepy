@@ -78,7 +78,7 @@ def lsFiles(files, add="", group=50):
         for val in sfiles:
             a += val + " "
         data = subprocess.run(
-            "gsutil -m ls " + add + " " + a, capture_output=True, shell=True
+            "gsutil -m ls " + add + " '" + a"'", capture_output=True, shell=True
         )
         if data.returncode != 0:
             if "One or more URLs matched no objects" not in str(data.stderr):
