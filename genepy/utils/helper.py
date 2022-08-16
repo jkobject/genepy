@@ -55,21 +55,21 @@ rename_mut = {
 }
 
 
-def fileToList(filename):
+def fileToList(filename, strconv=lambda x: x):
     """
     loads an input file with a\\n b\\n.. into a list [a,b,..]
     """
     with open(filename) as f:
-        return [val[:-1] for val in f.readlines()]
+        return [strconv(val[:-1]) for val in f.readlines()]
 
 
-def listToFile(l, filename):
+def listToFile(l, filename, strconv=lambda x: str(x)):
     """
     loads a list with [a,b,..] into an input file a\\n b\\n..
     """
     with open(filename, "w") as f:
         for item in l:
-            f.write("%s\n" % item)
+            f.write("%s\n" % strconv(item))
 
 
 def dictToFile(d, filename):
@@ -1006,6 +1006,11 @@ def cutLoops(li):
 def removeCoVar(mat, maxcorr=0.95):
     """removeCoVar list columns to remove as they covar with other columns
 
+    just regular linear correlation.
+    It displays a list of genes that have been dropped because their correlation
+    to another gene is above a certain value.
+    It shows a python dictionary {gene_to_be_dropped: gene_it_correlates_to}.
+
     Args:
         mat (array like): the matrix of obs x var
         maxcorr (float, optional): the max correlation above which to drop an observation. Defaults to 0.95.
@@ -1013,32 +1018,20 @@ def removeCoVar(mat, maxcorr=0.95):
     Returns:
         list(tuples): lists of observations to drop and their covarying observation to keep [(todrop,tokeep),...]
     """
+    mat = mat.T
     loc = np.argwhere(np.corrcoef(mat) >= maxcorr)
     nloc = cutLoops(loc)
 
     drop = []
     sameness = []
     for a, b in nloc:
-        if b in drop:
-            if a not in drop:
-                continue
-            else:
-                drop.append(a)
-                for same in sameness:
-                    if same[0] == b:
-                        sameness.append((a, same[0]))
-                        break
-        else:
-            drop.append(b)
-            if a in drop:
-                for same in sameness:
-                    if same[0] == a:
-                        sameness.append((b, same[0]))
-                        break
-            else:
+        if a not in drop:
+            # we already said to drop b: do nothing here
+            if b not in drop:
+                drop.append(b)
                 sameness.append((b, a))
     if type(mat) is pd.DataFrame:
-        col = mat.columns.tolist()
+        col = mat.index.tolist()
         # replace sameness values with the col values
         res = []
         for (i, j) in sameness:

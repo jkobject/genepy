@@ -141,6 +141,8 @@ def vcf_to_df(
                         annot = annot.replace("FUNCOTATION=", "")[1:-1]
                         res.update({name: [] for name in funco_fields})
                         for site in annot.split("],["):
+                            if "]#[" in site:
+                                site = site.split("]#[")[0]
                             site = (
                                 site.replace("_%7C_", " ")
                                 .replace("_%20_", " ")
