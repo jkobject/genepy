@@ -383,7 +383,9 @@ async def shareFiles(flist, users):
 
 
 def deleteOldVersions(path, onlymetagene=None, **kwargs):
-    """ """
+    """
+    given a path to a folder in google cloud storage, will delete all the old versions of the files in the path.
+    """
     data = subprocess.run("gsutil -m ls -alh " + path, capture_output=True, shell=True)
     if data.returncode != 0:
         if "One or more URLs matched no objects" not in str(data.stderr):
@@ -395,15 +397,16 @@ def deleteOldVersions(path, onlymetagene=None, **kwargs):
     torm = []
     for i, val in enumerate(resa):
         if onlymetagene is not None:
-            if "metageneration=" + str(metagene) in val:
-                name = "gs://" + val.split(" gs://")[1].split("  ")[0]
-                torm.append(name)
-            else:
-                prevname = torm[-1].split("#")[0]
-                name = "gs://" + val.split(" gs://")[1].split("#")[0]
-                if prevname != name:
-                    print(prevname + " is unique and won't be deleted")
-                    torm.pop()
+            print("torework")
+            # if "metageneration=" + str(metagene) in val:
+            #    name = "gs://" + val.split(" gs://")[1].split("  ")[0]
+            #    torm.append(name)
+            # else:
+            #    prevname = torm[-1].split("#")[0]
+            #    name = "gs://" + val.split(" gs://")[1].split("#")[0]
+            #    if prevname != name:
+            #        print(prevname + " is unique and won't be deleted")
+            #        torm.pop()
         else:
             if "metageneration=" + str(1) not in val:
                 name = "gs://" + val.split(" gs://")[1].split("  ")[0]

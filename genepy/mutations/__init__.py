@@ -38,15 +38,22 @@ def vcf_to_df(
 
     Args:
     -----
-      path: str filepath to the vcf file
-      hasfilter: bool whether or not the vcf has a filter column
-      samples: list[str] colnames of the sample names.
-      additional_cols: list[str] of additional colnames in the vcf already looks for 'DB', 'SOMATIC', 'GERMLINE', "OVERLAP", "IN_PON", "STR", "ReverseComplementedAlleles"
+        path: str filepath to the vcf file
+        additional_filters: list[str] additional values added by the filtering tool looks for PASS, base_qual,
+            clustered_events, fragment, germline, haplotype, map_qual, multiallelic,
+            panel_of_normals, position, slippage, strand_bias, weak_evidence
+        additional_cols: list[str] of additional colnames in the vcf already looks for 'DB',
+            'SOMATIC', 'GERMLINE', "OVERLAP", "IN_PON", "STR", "ReverseComplementedAlleles"
+        parse_filter: bool if true, will parse the filter field and add it to the dataframe
+        drop_null: bool if a column appears to be fully empty, will drop it
+        force_keep: list[str] columns to force keep even if they are empty
+        cols_to_drop: list[str] columns to drop even if they are not empty
 
     Returns:
     --------
       a dataframe fo the vcf
       a dict associating each column with its description (gathered from the vcf header)
+      a list of the columns that have been dropped
     """
     uniqueargs = [
         "DB",
