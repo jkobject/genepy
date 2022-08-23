@@ -41,6 +41,7 @@ def scatter(
     colprovided=False,
     shape=None,
     no_xy=False,
+    searchbox=False,
     **kwargs
 ):
     """
@@ -112,6 +113,7 @@ def scatter(
     shape_encoder = {val: i for i, val in enumerate(set(shape))}
     if len(set(shape)) > 8:
         raise ValueError("Too many shapes")
+    source = []
     for val in set(shape):
         di = dict(
             x=data[shape == val, 0],
@@ -130,7 +132,7 @@ def scatter(
                 {va: np.array(label)[shape == val] for va, label in labels.items()}
             )
 
-        source = ColumnDataSource(data=di)
+        source.append(ColumnDataSource(data=di))
 
         shaplot[shape_encoder[val]](
             "x",
@@ -140,7 +142,7 @@ def scatter(
             line_alpha="fill_alpha",
             line_width=1,
             size="radius",
-            source=source,
+            source=source[-1],
         )
     p.xaxis[0].axis_label = xname
     p.yaxis[0].axis_label = yname
@@ -157,6 +159,31 @@ def scatter(
             render_mode="canvas",
         )
         p.add_layout(labels)
+    if searchbox:
+        text = TextInput(title="search:", value="name")
+        text.js_on_change(
+            "value",
+            CustomJS(
+                args={"sources": source},
+                code="""
+                for (let source of sources) {
+                    var data = source.data;
+                    var samplename = data.name
+                    var value = cb_obj.value
+                    var a = -1
+                    for (let i=0; i < samplename.length; i++) {
+                        if ( samplename[i]===value ) { a=i; console.log(i); data.radius[i]=data.radius[i]*4; data.fill_alpha[i]=1; data.fill_color[i]='#000000' }
+                    }
+                    if (a!==-1) {
+                        source.data = data
+                        source.change.emit()
+                        break;
+                    }
+                }
+                """,
+            ),
+        )
+        p = column(text, p)
     try:
         show(p)
     except:
