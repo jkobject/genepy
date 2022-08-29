@@ -37,7 +37,9 @@ _tools that you do not need to use directly as they have binding functions in ge
 
 `pip install broad-genepy`
 
-and then use with `from genepy.utils/epigenetics/... import ...` 
+and then use with `from genepy.utils/epigenetics/... import ...`
+
+Please see the next step to get access to all bindings and tools.
 
 ### dev mode
 
@@ -56,30 +58,33 @@ from genepy.epigenetics import chipseq
 
 ```
 
-## data:
-
-hg38 genome sizes: from https://github.com/igvteam/igv/blob/master/genomes/sizes/hg38.chrom.sizes
-
-
-## installation: to get access to all bindings
+## installation: to get access to all bindings and tools
 
 Install the following tools:
+- [gcloud](https://cloud.google.com/sdk/docs/install-sdk)
+- [firecloud-dalmatian](https://github.com/getzlab/dalmatian) 
+- [gsheets](https://github.com/xflr6/gsheets)
 - [htslib/samtools](http://www.htslib.org/)
 - [bwa](https://github.com/lh3/bwa)
 just used once:
 - [bowtie2](http://bowtie-bio.sourceforge.net/bowtie2/index.shtml)
+
+Some of these packages like gsheets, gcloud, firecloud-dalmatian will require you to create google accounts, login on your machine or download oauth files.
 
 Finaly you can install R packages (GSEABase, erccdashboard, GSVA, DESeq2):
 
 ```bash
 R -e 'if(!requireNamespace("BiocManager", quietly = TRUE)){install.packages("BiocManager")};BiocManager::install(c("GSEABase", "erccdashboard", "GSVA", "DESeq2"));'
 ```
+
+## data:
+
+hg38 genome sizes: from https://github.com/igvteam/igv/blob/master/genomes/sizes/hg38.chrom.sizes
+
 ## About
 
 please do contribute, we do not have time to fix all issues or work on feature requests
 
 Jeremie Kalfon jkalfon@broadinstitute.org jkobject@gmail.com https://jkobject.com
-
-Javad Noorbakhsh jnoorbak@broadinstitute.org
 
 Apache license 2.0.
