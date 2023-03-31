@@ -67,7 +67,7 @@ setup(
     long_description_content_type="text/markdown",
     author="Jeremie Kalfon",
     author_email="jkobject@gmail.com",
-    url="https://github.com/BroadInstitute/genepy",
+    url="https://github.com/whitelabgenomics/genepy",
     packages=[
         "genepy/cell_line_mapping-master/python/cell_line_mapper",
         "genepy/epigenetics",
