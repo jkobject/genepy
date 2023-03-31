@@ -60,7 +60,7 @@ def read_requirements(path):
 
 
 setup(
-    name="Broad-genepy",
+    name="wlg-genepy",
     version=read("genepy", "VERSION"),
     description="A useful module for any CompBio",
     long_description=long_description,
