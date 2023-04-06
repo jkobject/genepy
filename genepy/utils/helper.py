@@ -902,7 +902,7 @@ def _fetchFromServer(ensemble_server, attributes):
     return res
 
 
-def generateGeneNames(
+def getBiomartTable(
     ensemble_server="http://nov2020.archive.ensembl.org/biomart",
     useCache=False,
     cache_folder="/".join(__file__.split("/")[:-3]) + "/",
