@@ -39,7 +39,7 @@ def filterProteinCoding(listofgenes, from_idtype="ensemble_gene_id"):
     """
     tokeep = []
     b = 0
-    gene_mapping = h.generateGeneNames()
+    gene_mapping = h.getBiomartTable()
 
     for i, val in enumerate(listofgenes):
         if from_idtype == "ensemble_gene_id":
@@ -78,7 +78,7 @@ def convertGenes(
       2: the names of genes that could not be matched
     """
 
-    gene_mapping = h.generateGeneNames(
+    gene_mapping = h.getBiomartTable(
         useCache=useCache, ensemble_server=ensemble_server
     )
 
