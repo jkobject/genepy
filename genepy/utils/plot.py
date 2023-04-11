@@ -7,7 +7,7 @@ import venn as pyvenn
 from matplotlib import pyplot as plt
 from matplotlib import cm
 from bokeh.palettes import *
-from bokeh.layouts import layout, widgetbox, column, row
+from bokeh.layouts import layout, Column, column, row
 from bokeh.models.annotations import LabelSet
 from bokeh.models.widgets import TextInput
 from bokeh.models import HoverTool, CustomJS, BasicTicker, ColorBar, PrintfTickFormatter
