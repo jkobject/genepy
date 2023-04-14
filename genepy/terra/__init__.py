@@ -156,7 +156,7 @@ def uploadFromFolder(
     loc=0,
     fformat="fastq12",
     newsamples=None,
-    samplesetname=None,
+    samplesetname,
     source="U",
     bamcol="bam",
     baicol="bai",
