@@ -190,7 +190,7 @@ def uploadFromFolder(
     print(
         "please be sure you gave access to your terra email account access to this bucket"
     )
-    if samplesetname==None:
+    if samplesetname is None:
         samplesetname = "from:" + gcpfolder + prefix
     files = gcp.list_blobs_with_prefix(gcpfolder, prefix, "/")
     if fformat == "bambai":
