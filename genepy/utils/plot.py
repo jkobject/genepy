@@ -447,10 +447,10 @@ def volcano(
         logfoldtohighlight,
         pvaltohighlight,
     )
-    hover = bokeh.models.HoverTool(tooltips=tooltips, names=["circles"])
+    hover = bokeh.models.HoverTool(tooltips=tooltips)
 
     # Create figure
-    p = bokeh.plotting.figure(title=title, plot_width=650, plot_height=450)
+    p = bokeh.plotting.figure(title=title, width=650, height=450)
 
     p.xgrid.grid_line_color = "white"
     p.ygrid.grid_line_color = "white"
