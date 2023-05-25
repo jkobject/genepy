@@ -482,7 +482,7 @@ def volcano(
             x_offset=5,
             y_offset=5,
             source=source2,
-            render_mode="canvas",
+            #render_mode="canvas"
         )
         p.add_layout(labels)
     if searchbox:
@@ -508,7 +508,7 @@ def volcano(
             ),
         )
         p = column(text, p)
-    p.output_backend = "svg"
+    #p.output_backend = "svg"
     if folder:
         save(p, folder + title.replace(" ", "_") + "_volcano.html")
         try:
