@@ -245,7 +245,7 @@ def vcf_to_df(
         data.loc[loc, "SB"] = data.loc[loc, "SB_1_2_3"]
         data = data.drop(columns=["SB_1", "SB_1_2_3"])
         data = data.rename(columns={"SB_1_2": "PS", "SB_1": "PID"})
-    else:
+    elif "PGT" in data.columns.tolist():
         loc = data.SB.isna()
         data.loc[loc, "SB"] = data.loc[loc, "PGT"]
         data.loc[loc, "PGT"] = ""
