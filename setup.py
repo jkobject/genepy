@@ -17,21 +17,21 @@ with open("README.md", "r") as f:
     long_description = f.read()
 
 print("trying to install R packages")
-try:
-    subprocess.run(
-        'R -e \'if(!requireNamespace("BiocManager", quietly = TRUE)){install.packages("BiocManager", repos="http://cran.us.r-project.org")};BiocManager::install(c("GSEABase", "erccdashboard", "GSVA", "DESeq2"));\'',
-        shell=True,
-        check=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    subprocess.run("pip install rpy2")
-except:
-    print("R packages not installed")
-print("if it did not work. please install R or check your R installation")
-print(
-    "once R is installed you need to install erccdashboard, GSEABase GSVA, DESeq2 to have access to all the functions"
-)
+# try:
+#    subprocess.run(
+#        'R -e \'if(!requireNamespace("BiocManager", quietly = TRUE)){install.packages("BiocManager", repos="http://cran.us.r-project.org")};BiocManager::install(c("GSEABase", "erccdashboard", "GSVA", "DESeq2"));\'',
+#        shell=True,
+#        check=True,
+#        stdout=subprocess.PIPE,
+#        stderr=subprocess.PIPE,
+#    )
+#    subprocess.run("pip install rpy2")
+# except:
+#    print("R packages not installed")
+# print("if it did not work. please install R or check your R installation")
+# print(
+#    "once R is installed you need to install erccdashboard, GSEABase GSVA, DESeq2 to have access to all the functions"
+# )
 
 
 def read(*paths, **kwargs):
