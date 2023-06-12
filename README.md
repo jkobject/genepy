@@ -33,22 +33,28 @@ _tools that you do not need to use directly as they have binding functions in ge
 
 ## Install
 
-### with pip
-
-`pip install broad-genepy`
-
-and then use with `from genepy.utils/epigenetics/... import ...`
-
-Please see the next step to get access to all bindings and tools.
-
-### dev mode
+### with conda
 
 ```bash
+conda create -n genepy python=3.9
+conda activate genepy
+conda install -c bioconda bioconductor-gsva 
+conda install -c bioconda bioconductor-deseq2
+conda install -c bioconda bioconductor-gseabase
+conda install -c bioconda bioconductor-erccdashboard
+conda install -c bioconda samtools
+conda install -c bioconda bwa
+conda install -c bioconda bowtie2
+conda install -c bioconda htslib
+conda install -c bioconda bedtools
+
 git clone git://github.com/BroadInstitute/genepy.git
-pip install -e genepy
+cd genepy
+pip install -e .
 ```
 
 then you can import files in python with e.g:
+
 ```python
 from genepy import terra
 from genepy.utils import helper as h
@@ -64,14 +70,10 @@ Install the following tools:
 - [gcloud](https://cloud.google.com/sdk/docs/install-sdk)
 - [firecloud-dalmatian](https://github.com/getzlab/dalmatian) 
 - [gsheets](https://github.com/xflr6/gsheets)
-- [htslib/samtools](http://www.htslib.org/)
-- [bwa](https://github.com/lh3/bwa)
-just used once:
-- [bowtie2](http://bowtie-bio.sourceforge.net/bowtie2/index.shtml)
 
 Some of these packages like gsheets, gcloud, firecloud-dalmatian will require you to create google accounts, login on your machine or download oauth files.
 
-Finaly you can install R packages (GSEABase, erccdashboard, GSVA, DESeq2):
+Finaly you can install R packages (GSEABase, erccdashboard, GSVA, DESeq2) yourself if you haven't used conda to do it:
 
 ```bash
 R -e 'if(!requireNamespace("BiocManager", quietly = TRUE)){install.packages("BiocManager")};BiocManager::install(c("GSEABase", "erccdashboard", "GSVA", "DESeq2"));'
