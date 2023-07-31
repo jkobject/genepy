@@ -63,21 +63,11 @@ from genepy.utils import plot
 from genepy.epigenetics import chipseq
 
 ```
-
-## installation: to get access to all bindings and tools
-
-Install the following tools:
+Some of the packages like gsheets, gcloud, firecloud-dalmatian will require you to create google accounts, login on your machine or download oauth files.
 - [gcloud](https://cloud.google.com/sdk/docs/install-sdk)
 - [firecloud-dalmatian](https://github.com/getzlab/dalmatian) 
 - [gsheets](https://github.com/xflr6/gsheets)
 
-Some of these packages like gsheets, gcloud, firecloud-dalmatian will require you to create google accounts, login on your machine or download oauth files.
-
-Finaly you can install R packages (GSEABase, erccdashboard, GSVA, DESeq2) yourself if you haven't used conda to do it:
-
-```bash
-R -e 'if(!requireNamespace("BiocManager", quietly = TRUE)){install.packages("BiocManager")};BiocManager::install(c("GSEABase", "erccdashboard", "GSVA", "DESeq2"));'
-```
 
 ## data:
 
