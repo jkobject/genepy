@@ -1,0 +1,5 @@
+site_name: genepy
+theme: readthedocs
+plugins:
+  - search
+  - mkdocstrings

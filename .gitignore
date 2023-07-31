@@ -3,13 +3,12 @@
 ### PERSO ###
 data/*
 
-
 ### macOS ###
 # General
 .DS_Store
 .AppleDouble
 .LSOverride
-.vscode
+.biomart.csv
 
 # Icon must end with two \r
 Icon
@@ -149,7 +148,6 @@ venv.bak/
 .ropeproject
 
 # mkdocs documentation
-/site
 
 # mypy
 .mypy_cache/
@@ -232,5 +230,8 @@ bh_unicode_properties.cache
 # Sublime-github package stores a github token in this file
 # https://packagecontrol.io/packages/sublime-github
 GitHub.sublime-settings
+
+# tmp files
+tmp.py
 
 # End of https://www.gitignore.io/api/r,macos,python,sublimetext

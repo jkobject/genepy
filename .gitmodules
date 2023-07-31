@@ -1,6 +1,3 @@
-[submodule "gkugener"]
-	path = gkugener
-	url = https://github.com/broadinstitute/gkugener
-[submodule "epiigenetics/rose"]
-	path = epiigenetics/rose
+[submodule "genepy/epigenetics/rose"]
+	path = genepy/epigenetics/rose
 	url = https://github.com/jkobject/rose.git
