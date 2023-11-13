@@ -903,10 +903,11 @@ def _fetchFromServer(ensemble_server, attributes):
 
 
 def getBiomartTable(
-    ensemble_server="http://nov2020.archive.ensembl.org/biomart",
+    ensemble_server="http://feb2023.archive.ensembl.org/biomart",
     useCache=False,
     cache_folder="/".join(__file__.split("/")[:-3]) + "/",
     attributes=[],
+    bypass_attributes=False,
 ):
     """generate a genelist dataframe from ensembl's biomart
 
@@ -921,13 +922,16 @@ def getBiomartTable(
     Returns:
         [type]: [description]
     """
-    attr = [
-        "ensembl_gene_id",
-        "clone_based_ensembl_gene",
-        "hgnc_symbol",
-        "gene_biotype",
-        "entrezgene_id",
-    ]
+    attr = (
+        [
+            "ensembl_gene_id",
+            "hgnc_symbol",
+            "gene_biotype",
+            "entrezgene_id",
+        ]
+        if not bypass_attributes
+        else []
+    )
     assert cache_folder[-1] == "/"
 
     cache_folder = os.path.expanduser(cache_folder)
@@ -938,16 +942,17 @@ def getBiomartTable(
         res = pd.read_csv(cachefile)
     else:
         print("downloading gene names from biomart")
+
         res = _fetchFromServer(ensemble_server, attr + attributes)
         res.to_csv(cachefile, index=False)
 
     res.columns = attr + attributes
     if type(res) is not type(pd.DataFrame()):
         raise ValueError("should be a dataframe")
-    res = res[~(res["clone_based_ensembl_gene"].isna() & res["hgnc_symbol"].isna())]
+    res = res[~(res["ensembl_gene_id"].isna() & res["hgnc_symbol"].isna())]
     res.loc[res[res.hgnc_symbol.isna()].index, "hgnc_symbol"] = res[
         res.hgnc_symbol.isna()
-    ]["clone_based_ensembl_gene"]
+    ]["ensembl_gene_id"]
 
     return res
 
@@ -1034,7 +1039,7 @@ def removeCoVar(mat, maxcorr=0.95):
         col = mat.index.tolist()
         # replace sameness values with the col values
         res = []
-        for (i, j) in sameness:
+        for i, j in sameness:
             res.append((col[i], col[j]))
         sameness = res
 
