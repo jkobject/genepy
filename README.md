@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/186676304.svg)](https://zenodo.org/doi/10.5281/zenodo.10573223)
+
 # genepy
 
 _what is [genepy](https://en.wikipedia.org/wiki/G%C3%A9n%C3%A9pi)?_
